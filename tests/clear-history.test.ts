@@ -67,6 +67,7 @@ describe.skipIf(!url)('history cleanup on a disposable PostgreSQL database', () 
       sessions: 3,
       exercises: 1,
       sets: 2,
+      workoutPosition: { before: 5, after: 1 },
       activities: ['boxing', 'gym', 'pilates'].map((activity_type) => ({
         activity_type,
         count: 1,
@@ -75,14 +76,25 @@ describe.skipIf(!url)('history cleanup on a disposable PostgreSQL database', () 
     expect(await snapshot([...historyTables, ...planTables])).toEqual(before);
   });
 
-  it('deletes all history and preserves the entire program, catalog and queue on repeated runs', async () => {
+  it('clears history and resets the active queue once while preserving the plans and catalog', async () => {
     const before = await snapshot(planTables);
-    expect(await run(true)).toMatchObject({ mode: 'apply', sessions: 3, exercises: 1, sets: 2 });
+    expect(await run(true)).toMatchObject({
+      mode: 'apply',
+      sessions: 3,
+      exercises: 1,
+      sets: 2,
+      workoutPosition: { before: 5, after: 1 },
+    });
     expect(await snapshot(historyTables)).toEqual({
       sessions: [],
       session_exercises: [],
       session_sets: [],
     });
+    before.programs = before.programs.map((program) => ({
+      ...(program as Record<string, unknown>),
+      next_position: 1,
+      revision: 8,
+    }));
     expect(await snapshot(planTables)).toEqual(before);
     expect(await run(true)).toEqual({
       mode: 'apply',
@@ -90,7 +102,35 @@ describe.skipIf(!url)('history cleanup on a disposable PostgreSQL database', () 
       exercises: 0,
       sets: 0,
       activities: [],
+      workoutPosition: { before: 1, after: 1 },
     });
+    expect(await snapshot(planTables)).toEqual(before);
+  });
+
+  it('resets the queue even when the history is already empty', async () => {
+    await run(true);
+    await admin.query('UPDATE programs SET next_position=6 WHERE is_active');
+    expect(await run(true)).toMatchObject({
+      sessions: 0,
+      workoutPosition: { before: 6, after: 1 },
+    });
+    expect(
+      (await admin.query('SELECT next_position,revision FROM programs WHERE is_active')).rows[0],
+    ).toEqual({ next_position: 1, revision: 9 });
+  });
+
+  it('invalidates prior gym drafts when clearing history at position one', async () => {
+    await admin.query('UPDATE programs SET next_position=1 WHERE is_active');
+    await run(true);
+    expect(
+      (await admin.query('SELECT next_position,revision FROM programs WHERE is_active')).rows[0],
+    ).toEqual({ next_position: 1, revision: 8 });
+  });
+
+  it('leaves inactive programs unchanged when there is no active queue', async () => {
+    await admin.query('UPDATE programs SET is_active=false');
+    const before = await snapshot(planTables);
+    expect(await run(true)).toMatchObject({ sessions: 3, workoutPosition: null });
     expect(await snapshot(planTables)).toEqual(before);
   });
 

@@ -37,9 +37,22 @@ export async function clearHistory({ connectionString, apply = false }) {
       );
     }
     const before = await counts(client);
+    const activeProgram = (
+      await client.query('SELECT id,next_position FROM programs WHERE is_active')
+    ).rows[0];
+    const workoutPosition = activeProgram
+      ? { before: activeProgram.next_position, after: 1 }
+      : null;
     if (!apply) {
       await client.query('ROLLBACK');
-      return { mode: 'check', ...before };
+      return { mode: 'check', ...before, workoutPosition };
+    }
+    if (activeProgram && (before.sessions > 0 || activeProgram.next_position !== 1)) {
+      // Invalidate gym drafts from before the reset, even when the queue was
+      // already at position 1 after a completed cycle. Empty retries are a no-op.
+      await client.query('UPDATE programs SET next_position=1,revision=revision+1 WHERE id=$1', [
+        activeProgram.id,
+      ]);
     }
     const deletedSets = await client.query('DELETE FROM session_sets');
     const deletedExercises = await client.query('DELETE FROM session_exercises');
@@ -55,7 +68,7 @@ export async function clearHistory({ connectionString, apply = false }) {
     )
       throw new Error('Проверка очистки не пройдена. Изменения отменены.');
     await client.query('COMMIT');
-    return { mode: 'apply', ...before };
+    return { mode: 'apply', ...before, workoutPosition };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -82,8 +95,8 @@ async function main() {
   console.log(`База: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
   console.log(
     values.apply
-      ? 'Удаление всей истории занятий, записанных упражнений и подходов.'
-      : 'Проверка без удаления. Количество записей для очистки:',
+      ? 'Удаление всей истории и возврат активной программы к тренировке №1.'
+      : 'Проверка без изменений. Записи для очистки и сброс номера тренировки:',
   );
   const result = await clearHistory({ connectionString: env.DATABASE_URL, apply: !!values.apply });
   console.log(JSON.stringify(result, null, 2));
