@@ -112,7 +112,11 @@ test('gym replacement, warmup, copy, completion and restoration', async ({ page 
   await expect(page.getByRole('main').getByRole('alert')).toContainText('Запиши все');
   await page.getByRole('button', { name: 'Скопировать предыдущий подход' }).click();
   await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
-  await page.getByRole('button', { name: /Открыть упражнение 2/ }).click();
+  await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Черновик сохранён' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /Продолжить: Зал/ }).click();
+  await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
   await page.getByLabel('Длительность, сек', { exact: true }).fill('30');
   await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
   await page.getByLabel('Длительность, сек', { exact: true }).fill('40');
@@ -126,6 +130,36 @@ test('gym replacement, warmup, copy, completion and restoration', async ({ page 
   await page.getByLabel('Тяжесть тренировки').selectOption('6');
   await page.getByRole('button', { name: 'Завершить и сохранить' }).click();
   await expect(page.getByText('Занятие сохранено в дневнике.')).toBeVisible();
+});
+test('exercise navigation waits for skipped sets and supports an already completed draft', async ({
+  page,
+}) => {
+  await prepare(page, 'Зал');
+  await page
+    .getByRole('group', { name: 'Подходы', exact: true })
+    .getByRole('button', { name: '3 рабочий', exact: true })
+    .click();
+  await page.getByLabel('Повторения', { exact: true }).fill('12');
+  await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
+  await expect(page.getByText('Упражнение 1 из 2', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('group', { name: 'Подходы', exact: true })
+      .getByRole('button', { name: '1 рабочий', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Повторения', { exact: true }).fill('10');
+  await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
+  await expect(page.getByText('Упражнение 1 из 2', { exact: true })).toBeVisible();
+  await page.getByLabel('Повторения', { exact: true }).fill('12');
+  await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
+  await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Открыть упражнение 1/ }).click();
+  await expect(page.getByLabel('Повторения', { exact: true })).toHaveValue('10');
+  await expect(page.getByRole('status').filter({ hasText: 'Черновик сохранён' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /Продолжить: Зал/ }).click();
+  await page.getByRole('button', { name: 'Следующее упражнение →', exact: true }).click();
+  await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
 });
 test('lost server response retries the same saved session without duplicating it', async ({
   page,

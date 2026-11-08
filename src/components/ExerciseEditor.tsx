@@ -37,9 +37,14 @@ export function ExerciseEditor({
     (o) => o.position === option.position && o.id !== option.id,
   );
   const editing = draft.editingRevision !== null;
-  const updateSets = (sets: SetResult[], index = draft.setIndex) =>
+  const updateSets = (
+    sets: SetResult[],
+    index = draft.setIndex,
+    exerciseIndex = draft.exerciseIndex,
+  ) =>
     change({
       ...draft,
+      exerciseIndex,
       setIndex: index,
       input: {
         ...draft.input,
@@ -65,7 +70,27 @@ export function ExerciseEditor({
     }
     onError('');
     const sets = exercise.sets.map((s, i) => (i === draft.setIndex ? { ...s, done: true } : s));
-    updateSets(sets, Math.min(draft.setIndex + 1, sets.length - 1));
+    if (editing) {
+      updateSets(sets, Math.min(draft.setIndex + 1, sets.length - 1));
+      return;
+    }
+    const pending = sets.findIndex((s) => !s.done);
+    if (pending !== -1) {
+      const next = sets.findIndex((s, i) => i > draft.setIndex && !s.done);
+      updateSets(sets, next !== -1 ? next : pending);
+      return;
+    }
+    const nextExercise = draft.input.exercises[draft.exerciseIndex + 1];
+    if (nextExercise) {
+      updateSets(
+        sets,
+        Math.max(
+          0,
+          nextExercise.sets.findIndex((s) => !s.done),
+        ),
+        draft.exerciseIndex + 1,
+      );
+    } else updateSets(sets);
   };
   const replace = (o: ExerciseOption) => {
     if (editing || hasResults(exercise.sets)) return;
@@ -223,7 +248,11 @@ export function ExerciseEditor({
           </button>
         )}
         <button className={css.primary} onClick={mark}>
-          ✓ Подход выполнен
+          {!editing &&
+          exercise.sets.every((s) => s.done) &&
+          draft.exerciseIndex < draft.input.exercises.length - 1
+            ? 'Следующее упражнение →'
+            : '✓ Подход выполнен'}
         </button>
       </div>
       <div className={css.section}>

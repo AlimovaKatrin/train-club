@@ -76,7 +76,7 @@ export function Diary() {
   }, []);
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [view, draft?.stage]);
+  }, [view, draft?.stage, draft?.exerciseIndex]);
   const change = (next: Draft) => {
     setDraft(next);
     setError('');
