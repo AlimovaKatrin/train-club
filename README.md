@@ -40,6 +40,8 @@ npm run dev
 
 ## Проверки
 
+Очистка всей истории занятий: [инструкция](db/CLEAR_HISTORY.md). `npm run db:history:clear` показывает количество записей; удаление выполняется только с `--apply`.
+
 Засеивание рабочей базы: [инструкция и команды](db/PRODUCTION_SEED.md). `npm run db:seed:production` проверяет базу без записи; `npm run db:seed:production -- --apply` применяет миграции и план одной транзакцией.
 
 ```sh
