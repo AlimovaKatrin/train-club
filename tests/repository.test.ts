@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
-import { bootstrap, editSession, saveSession } from '../src/lib/server/repository';
+import { bootstrap, editSession, saveSession, loadWorkout } from '../src/lib/server/repository';
 import { pool } from '../src/lib/server/db';
 import { blankSet, newDraft, type SessionInput } from '../src/lib/domain';
 const url = process.env.TEST_DATABASE_URL;
@@ -15,6 +15,14 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     await admin.connect();
     await admin.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
     await admin.query(await readFile('db/migrations/001_initial.sql', 'utf8'));
+    await admin.query(`INSERT INTO sessions(id,activity_type,performed_on,wellbeing,sleep_hours,
+      fixed_duration_minutes,heart_rate_min,heart_rate_max,exertion,request_hash)
+      VALUES(gen_random_uuid(),'pilates','2026-11-01',3,8,60,90,140,4,'legacy')`);
+    await admin.query(await readFile('db/migrations/002_session_duration.sql', 'utf8'));
+    expect(
+      (await admin.query('SELECT fixed_duration_minutes FROM sessions')).rows[0]
+        .fixed_duration_minutes,
+    ).toBe(60);
   });
   beforeEach(async () => {
     await admin.query(
@@ -88,6 +96,72 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     expect(state.history.find((s) => s.input.id === r.input.id)!.revision).toBe(1);
     await expect(editSession({ ...input, notes: 'Conflict' }, r.revision)).rejects.toThrow(
       'другом окне',
+    );
+  });
+  it('saves and edits actual duration without changing the gym queue', async () => {
+    const before = (await bootstrap()).workout!;
+    const { input } = newDraft('pilates', '2026-11-08', null);
+    const saved = (await saveSession({
+      ...input,
+      wellbeing: 3,
+      exertion: 4,
+      durationMinutes: 30,
+    }))!;
+    expect(saved.input.durationMinutes).toBe(30);
+    await editSession({ ...saved.input, durationMinutes: 35 }, saved.revision);
+    const after = await bootstrap();
+    expect(after.history[0].input.durationMinutes).toBe(35);
+    expect(after.workout!.revision).toBe(before.revision);
+    expect(after.workout!.position).toBe(before.position);
+    for (const value of [null, 0, -1, 1441]) {
+      await expect(
+        admin.query('UPDATE sessions SET fixed_duration_minutes=$1 WHERE id=$2', [value, input.id]),
+      ).rejects.toThrow();
+    }
+  });
+  it('loads all eight personal workouts with independent seated/lying plans and history', async () => {
+    const seed = await readFile('db/seeds/personal.sql', 'utf8');
+    await admin.query(seed);
+    const first = (await bootstrap()).workout!;
+    const templates = await admin.query(
+      'SELECT id FROM workout_templates WHERE program_id=$1 ORDER BY position',
+      [first.programId],
+    );
+    expect(templates.rows).toHaveLength(8);
+    for (const template of templates.rows) {
+      const workout = (await loadWorkout(admin, template.id))!;
+      expect(workout.options.filter((o) => o.primary)).toHaveLength(5);
+      const curls = workout.options.filter(
+        (o) => o.position === 4 && o.name.startsWith('Сгибание ног'),
+      );
+      expect(curls).toHaveLength(2);
+      for (const curl of curls) {
+        expect(curl.primary).toBe(curl.name === 'Сгибание ног сидя');
+        expect(curl.weightType).toBe('machine');
+        expect(curl.perSide).toBe(false);
+        expect(curl.instructions).toContain('60–90 секунд');
+        expect(curl.instructions).toContain('около 3 повторений');
+        expect(curl.plan).toEqual(
+          [1, 2].map((position) => ({ position, repsMin: 12, repsMax: 15, seconds: null })),
+        );
+      }
+    }
+    const input = await gym();
+    const lying = first.options.find((o) => o.name === 'Сгибание ног лёжа')!;
+    input.exercises[3] = {
+      optionId: lying.id,
+      sets: lying.plan.map((p) => ({ ...blankSet(p.position), done: true, reps: 12, weight: 15 })),
+    };
+    await saveSession(input);
+    await admin.query(seed); // A repeat must not reset the queue or duplicate the program.
+    const next = (await bootstrap()).workout!;
+    expect(next.position).toBe(2);
+    expect(next.options.find((o) => o.name === 'Сгибание ног лёжа')!.previous!.sets[0].weight).toBe(
+      15,
+    );
+    expect(next.options.find((o) => o.name === 'Сгибание ног сидя')!.previous).toBeNull();
+    expect((await admin.query('SELECT count(*)::int AS count FROM exercises')).rows[0].count).toBe(
+      14,
     );
   });
   it('uses the replacement plan, exercise identity and its own previous results', async () => {

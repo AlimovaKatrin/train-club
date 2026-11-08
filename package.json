@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db.mjs migrate",
     "db:seed:demo": "node --env-file-if-exists=.env.local scripts/db.mjs demo",
+    "db:seed:personal": "node --env-file-if-exists=.env.local scripts/db.mjs personal",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

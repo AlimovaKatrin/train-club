@@ -15,6 +15,40 @@ async function prepare(page: Page, kind: string) {
     .click();
   await page.getByRole('button', { name: 'Начать занятие →' }).click();
 }
+test('a legacy pilates draft keeps its implicit hour after upgrade', async ({ page }) => {
+  await prepare(page, 'Пилатес');
+  await expect(page.getByRole('status').filter({ hasText: 'Черновик сохранён' })).toBeVisible();
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('train-club', 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction('drafts', 'readwrite');
+        const store = transaction.objectStore('drafts');
+        const cursor = store.openCursor();
+        cursor.onsuccess = () => {
+          if (!cursor.result) return;
+          const draft = cursor.result.value;
+          delete draft.input.durationMinutes;
+          cursor.result.update(draft);
+          cursor.result.continue();
+        };
+        transaction.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        transaction.onerror = () => {
+          db.close();
+          reject(transaction.error);
+        };
+      };
+    });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: /Продолжить: Пилатес/ }).click();
+  await expect(page.getByLabel('Продолжительность, мин', { exact: true })).toHaveValue('60');
+});
 test('pilates draft survives reload and an offline submission; editing keeps queue unchanged', async ({
   page,
   context,
@@ -22,7 +56,7 @@ test('pilates draft survives reload and an offline submission; editing keeps que
 }) => {
   const before = await (await request.get('/api/bootstrap')).json();
   await prepare(page, 'Пилатес');
-  await expect(page.getByRole('heading', { name: '1 час' })).toBeVisible();
+  await page.getByLabel('Продолжительность, мин', { exact: true }).fill('30');
   await page.getByLabel('Минимальный пульс', { exact: true }).fill('92');
   await page.getByLabel('Максимальный пульс', { exact: true }).fill('154');
   await page.getByLabel('Тяжесть тренировки').selectOption('5');
@@ -30,6 +64,7 @@ test('pilates draft survives reload and an offline submission; editing keeps que
   await page.reload();
   await page.getByRole('button', { name: /Продолжить: Пилатес/ }).click();
   await expect(page.getByLabel('Минимальный пульс', { exact: true })).toHaveValue('92');
+  await expect(page.getByLabel('Продолжительность, мин', { exact: true })).toHaveValue('30');
   await context.setOffline(true);
   await page.getByLabel('Заметка').fill('Offline note');
   await page.getByRole('button', { name: 'Завершить и сохранить' }).click();
@@ -38,6 +73,9 @@ test('pilates draft survives reload and an offline submission; editing keeps que
   await page.getByRole('button', { name: 'Завершить и сохранить' }).click();
   await expect(page.getByText('Занятие сохранено в дневнике.')).toBeVisible();
   await page.getByRole('button', { name: 'Открыть дневник →' }).click();
+  await expect(
+    page.getByRole('button', { name: /Пилатес.*30 мин.*тяжесть 5\/10/ }).first(),
+  ).toBeVisible();
   await page
     .getByRole('button', { name: /Пилатес.*тяжесть 5\/10/ })
     .first()
@@ -45,11 +83,14 @@ test('pilates draft survives reload and an offline submission; editing keeps que
   await page.getByRole('button', { name: 'Исправить запись' }).click();
   await page.getByLabel('Сон, часов', { exact: true }).fill('7.5');
   await page.getByRole('button', { name: 'Начать занятие →' }).click();
+  await expect(page.getByLabel('Продолжительность, мин', { exact: true })).toHaveValue('30');
+  await page.getByLabel('Продолжительность, мин', { exact: true }).fill('35');
   await page.getByRole('button', { name: 'Сохранить исправления' }).click();
   await expect(page.getByText('Занятие сохранено в дневнике.')).toBeVisible();
   const after = await (await request.get('/api/bootstrap')).json();
   expect(after.workout.revision).toBe(before.workout.revision);
   expect(after.history[0].input.sleep).toBe(7.5);
+  expect(after.history[0].input.durationMinutes).toBe(35);
 });
 test('gym replacement, warmup, copy, completion and restoration', async ({ page }) => {
   await prepare(page, 'Зал');

@@ -11,8 +11,11 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
         <h1>Перед занятием</h1>
         <p className={css.subtitle}>
           {activityNames[s.activity]}
-          {s.activity === 'gym' ? ` · тренировка ${draft.workout!.position} из 8` : ' · 1 час'}
+          {s.activity === 'gym' ? ` · тренировка ${draft.workout!.position} из 8` : ''}
         </p>
+        {s.activity === 'gym' && draft.workout?.notes && (
+          <p className={css.small}>{draft.workout.notes}</p>
+        )}
         <label className={css.field}>
           <span>Дата занятия</span>
           <input type="date" value={s.date} onChange={(e) => patch({ date: e.target.value })} />
@@ -83,10 +86,13 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
           </div>
         </section>
       ) : (
-        <div className={css.next}>
-          <h2>1 час</h2>
-          <p>Продолжительность учтена автоматически.</p>
-        </div>
+        <NumberField
+          label="Продолжительность, мин"
+          value={s.durationMinutes}
+          min={1}
+          max={1440}
+          onChange={(durationMinutes) => patch({ durationMinutes })}
+        />
       )}
       <section className={css.section}>
         <h2>Пульс с часов, уд/мин</h2>

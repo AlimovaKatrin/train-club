@@ -58,7 +58,7 @@ export async function loadWorkout(db: Db, templateId?: string): Promise<Workout 
       measurement: o.measurement_type,
       weightType: o.weight_type,
       perSide: o.per_side,
-      instructions: o.instructions,
+      instructions: [o.instructions, o.notes].filter(Boolean).join(' '),
       plan: plans.map((p) => ({
         position: p.position,
         repsMin: p.target_reps_min,
@@ -81,6 +81,7 @@ export async function loadWorkout(db: Db, templateId?: string): Promise<Workout 
   const token = hash(options.map(({ previous: _previous, ...option }) => option));
   return {
     templateId: t.id,
+    notes: t.notes,
     programId: t.program_id,
     revision: t.revision,
     position: t.position,
@@ -162,6 +163,7 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
       warmup: s.warmup_minutes,
       main: s.main_minutes,
       cardio: s.cardio_minutes,
+      durationMinutes: s.fixed_duration_minutes,
       pulseMin: s.heart_rate_min,
       pulseMax: s.heart_rate_max,
       exertion: s.exertion,
@@ -295,7 +297,7 @@ export async function saveSession(raw: unknown) {
         input.warmup,
         input.main,
         input.cardio,
-        input.activity === 'gym' ? null : 60,
+        input.durationMinutes,
         input.pulseMin,
         input.pulseMax,
         input.exertion,
@@ -336,7 +338,7 @@ export async function editSession(raw: unknown, revision: number) {
       );
     const selected = validatedOptions(input, old.workout);
     await db.query(
-      `UPDATE sessions SET performed_on=$2,wellbeing=$3,sleep_hours=$4,warmup_minutes=$5,main_minutes=$6,cardio_minutes=$7,heart_rate_min=$8,heart_rate_max=$9,exertion=$10,notes=$11,revision=revision+1,updated_at=now(),request_hash=$12 WHERE id=$1`,
+      `UPDATE sessions SET performed_on=$2,wellbeing=$3,sleep_hours=$4,warmup_minutes=$5,main_minutes=$6,cardio_minutes=$7,heart_rate_min=$8,heart_rate_max=$9,exertion=$10,notes=$11,revision=revision+1,updated_at=now(),request_hash=$12,fixed_duration_minutes=$13 WHERE id=$1`,
       [
         input.id,
         input.date,
@@ -350,6 +352,7 @@ export async function editSession(raw: unknown, revision: number) {
         input.exertion,
         input.notes,
         fingerprint,
+        input.durationMinutes,
       ],
     );
     await db.query(

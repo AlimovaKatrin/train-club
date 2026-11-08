@@ -28,6 +28,7 @@ export type ExerciseOption = {
   previous: { date: string; sets: SetResult[] } | null;
 };
 export type Workout = {
+  notes?: string;
   programId: string;
   revision: number;
   templateId: string;
@@ -59,6 +60,7 @@ export const sessionSchema = z
     warmup: z.number().int().min(0).max(1440).nullable(),
     main: z.number().int().min(0).max(1440).nullable(),
     cardio: z.number().int().min(0).max(1440).nullable(),
+    durationMinutes: z.number().int().min(1).max(1440).nullable(),
     pulseMin: z.number().int().positive().max(400),
     pulseMax: z.number().int().positive().max(400),
     exertion: z.number().int().min(0).max(10),
@@ -75,6 +77,7 @@ export const sessionSchema = z
     const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
     if (s.pulseMin > s.pulseMax) fail('Минимальный пульс не может быть выше максимального.');
     if (s.activity === 'gym') {
+      if (s.durationMinutes !== null) fail('Для зала время указывается по частям занятия.');
       if (!s.templateId || s.programRevision === null || !s.planToken || !s.exercises.length)
         fail('Не найден план тренировки.');
       if (s.warmup === null || s.main === null || s.cardio === null || duration(s) <= 0)
@@ -88,9 +91,10 @@ export const sessionSchema = z
       s.exercises.length ||
       s.warmup !== null ||
       s.main !== null ||
-      s.cardio !== null
+      s.cardio !== null ||
+      s.durationMinutes === null
     )
-      fail('Для бокса и пилатеса учитывается один час без упражнений.');
+      fail('Для бокса и пилатеса укажи продолжительность в минутах, без упражнений.');
   });
 export type SessionInput = z.infer<typeof sessionSchema>;
 export type SessionRecord = { input: SessionInput; revision: number; workout: Workout | null };
@@ -104,8 +108,12 @@ export type Draft = {
   editingRevision: number | null;
 };
 export type Bootstrap = { workout: Workout | null; history: SessionRecord[] };
-export function duration(s: Pick<SessionInput, 'activity' | 'warmup' | 'main' | 'cardio'>) {
-  return s.activity === 'gym' ? (s.warmup ?? 0) + (s.main ?? 0) + (s.cardio ?? 0) : 60;
+export function duration(
+  s: Pick<SessionInput, 'activity' | 'warmup' | 'main' | 'cardio' | 'durationMinutes'>,
+) {
+  return s.activity === 'gym'
+    ? (s.warmup ?? 0) + (s.main ?? 0) + (s.cardio ?? 0)
+    : (s.durationMinutes ?? 0);
 }
 export function nextPosition(position: number) {
   return (position % 8) + 1;
@@ -144,6 +152,7 @@ export function newDraft(activity: Activity, date: string, workout: Workout | nu
       warmup: gym ? 0 : null,
       main: gym ? 0 : null,
       cardio: gym ? 0 : null,
+      durationMinutes: gym ? null : 60,
       templateId: gym ? workout!.templateId : null,
       programRevision: gym ? workout!.revision : null,
       planToken: gym ? workout!.token : null,

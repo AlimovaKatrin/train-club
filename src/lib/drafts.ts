@@ -34,7 +34,19 @@ export async function readDrafts(): Promise<Draft[]> {
       )
     )
       throw new Error('Unsupported draft');
-    return rows;
+    // Drafts written before editable duration used an implicit hour.
+    return rows.map((draft: Draft) => ({
+      ...draft,
+      input: {
+        ...draft.input,
+        durationMinutes:
+          draft.input.durationMinutes === undefined
+            ? draft.input.activity === 'gym'
+              ? null
+              : 60
+            : draft.input.durationMinutes,
+      },
+    }));
   } finally {
     database.close();
   }

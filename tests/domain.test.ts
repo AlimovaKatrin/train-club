@@ -65,7 +65,7 @@ describe('workout rules', () => {
   });
   it('blocks replacement even if entered results are not marked done', () =>
     expect(hasResults([{ ...blankSet(1), weight: 2.5 }])).toBe(true));
-  it('boxing/pilates are always sixty minutes with their own defaults', () => {
+  it('boxing/pilates default to sixty minutes and accept an actual thirty-minute duration', () => {
     for (const type of ['boxing', 'pilates'] as const) {
       const { input } = newDraft(type, '2026-11-08', null);
       expect(duration(input)).toBe(60);
@@ -74,6 +74,12 @@ describe('workout rules', () => {
       expect(input.pulseMax).toBe(180);
       expect(input.exercises).toEqual([]);
       expect(sessionSchema.safeParse({ ...input, wellbeing: 0, exertion: 0 }).success).toBe(true);
+      const shorter = { ...input, wellbeing: 0, exertion: 0, durationMinutes: 30 };
+      expect(sessionSchema.safeParse(shorter).success).toBe(true);
+      expect(duration(shorter)).toBe(30);
+      for (const durationMinutes of [null, 0, -1, 1.5, 1441, undefined]) {
+        expect(sessionSchema.safeParse({ ...shorter, durationMinutes }).success).toBe(false);
+      }
     }
   });
   it('rejects impossible dates, inverted pulse and missing scales', () => {
