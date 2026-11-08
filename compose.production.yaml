@@ -1,0 +1,80 @@
+name: train-club
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: train_club
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set the database administrator password}
+    command:
+      ['postgres', '-c', 'max_connections=30', '-c', 'shared_buffers=64MB', '-c', 'work_mem=2MB']
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d train_club']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+  app:
+    image: ${TRAIN_CLUB_IMAGE:?Set the application image tag}
+    restart: unless-stopped
+    init: true
+    env_file: .env.app.local
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/bootstrap').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 448m
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+    logging: *logging
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set the website hostname}
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 96m
+    logging: *logging
+  migrate:
+    image: ${TRAIN_CLUB_IMAGE:?Set the application image tag}
+    profiles: [tools]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./.env.migrations.local:/app/.env.production.local:ro
+    command: ['node', 'scripts/seed-production.mjs', '--apply']
+    mem_limit: 192m
+    logging: *logging
+volumes:
+  database:
+  caddy_data:
+  caddy_config:

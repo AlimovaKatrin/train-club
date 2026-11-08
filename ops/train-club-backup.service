@@ -1,0 +1,10 @@
+[Unit]
+Description=Encrypted Train Club PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/train-club/ops/backup.sh
+UMask=0077
+Nice=10
