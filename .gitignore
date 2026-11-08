@@ -9,3 +9,4 @@ test-results/
 *.tsbuildinfo
 .DS_Store
 .vercel/
+.vercel
