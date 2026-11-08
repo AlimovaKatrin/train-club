@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: train_club
+      POSTGRES_USER: train_club
+      POSTGRES_PASSWORD: local_development
+    ports:
+      - '127.0.0.1:55439:5432'
+    volumes:
+      - train_club_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U train_club']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  train_club_pg:

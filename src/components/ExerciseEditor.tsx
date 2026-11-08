@@ -1,0 +1,272 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import {
+  blankSet,
+  formatPlan,
+  formatSet,
+  hasResults,
+  optionSets,
+  setSchema,
+  weightNames,
+  workingProgress,
+  type Draft,
+  type ExerciseOption,
+  type SetResult,
+} from '@/lib/domain';
+import { NumberField } from './Fields';
+import css from './Diary.module.css';
+export function ExerciseEditor({
+  draft,
+  change,
+  onError,
+}: {
+  draft: Draft;
+  change: (next: Draft) => void;
+  onError: (message: string) => void;
+}) {
+  const [replacing, setReplacing] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (replacing) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [replacing]);
+  const exercise = draft.input.exercises[draft.exerciseIndex];
+  const option = draft.workout!.options.find((o) => o.id === exercise.optionId)!;
+  const set = exercise.sets[draft.setIndex];
+  const alternatives = draft.workout!.options.filter(
+    (o) => o.position === option.position && o.id !== option.id,
+  );
+  const editing = draft.editingRevision !== null;
+  const updateSets = (sets: SetResult[], index = draft.setIndex) =>
+    change({
+      ...draft,
+      setIndex: index,
+      input: {
+        ...draft.input,
+        exercises: draft.input.exercises.map((e, i) =>
+          i === draft.exerciseIndex ? { ...e, sets } : e,
+        ),
+      },
+    });
+  const updateSet = (patch: Partial<SetResult>) =>
+    updateSets(
+      exercise.sets.map((s, i) => (i === draft.setIndex ? { ...s, ...patch, done: false } : s)),
+    );
+  const mark = () => {
+    const result = setSchema.safeParse({ ...set, done: true });
+    if (
+      !result.success ||
+      (option.measurement === 'reps' ? set.reps === null : set.seconds === null)
+    ) {
+      onError(
+        'Укажи целое положительное число повторений или секунд. Вес можно оставить неизвестным.',
+      );
+      return;
+    }
+    onError('');
+    const sets = exercise.sets.map((s, i) => (i === draft.setIndex ? { ...s, done: true } : s));
+    updateSets(sets, Math.min(draft.setIndex + 1, sets.length - 1));
+  };
+  const replace = (o: ExerciseOption) => {
+    if (editing || hasResults(exercise.sets)) return;
+    change({
+      ...draft,
+      setIndex: 0,
+      input: {
+        ...draft.input,
+        exercises: draft.input.exercises.map((e, i) =>
+          i === draft.exerciseIndex ? { optionId: o.id, sets: optionSets(o) } : e,
+        ),
+      },
+    });
+    setReplacing(false);
+  };
+  const done = draft.input.exercises.reduce((n, e) => n + workingProgress(e.sets), 0);
+  const total = draft.input.exercises.reduce(
+    (n, e) => n + e.sets.filter((s) => s.type === 'working').length,
+    0,
+  );
+  const previousSet = exercise.sets[draft.setIndex - 1];
+  return (
+    <>
+      <h1>Твоя тренировка</h1>
+      <div className={css.sectionHead}>
+        <span className={css.small}>
+          Упражнение {draft.exerciseIndex + 1} из {draft.input.exercises.length}
+        </span>
+        <span className={css.small}>
+          {done} из {total} рабочих
+        </span>
+      </div>
+      <div
+        className={css.progress}
+        role="progressbar"
+        aria-label="Рабочие подходы"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+      >
+        <div style={{ width: `${(done / total) * 100}%` }} />
+      </div>
+      <div className={css.card}>
+        <span className={css.tag}>{option.plan.length} рабочих подхода</span>
+        <h2>{option.name}</h2>
+        <p className={css.subtitle}>
+          {weightNames[option.weightType]}
+          {option.perSide ? ' · на каждую сторону' : ''}
+          <br />
+          {option.equipment}
+        </p>
+        {option.instructions && <p className={css.small}>{option.instructions}</p>}
+        {!editing && (
+          <button
+            className={css.textButton}
+            disabled={!alternatives.length || hasResults(exercise.sets)}
+            onClick={() => setReplacing(true)}
+          >
+            Заменить упражнение
+          </button>
+        )}
+        {!editing && hasResults(exercise.sets) && (
+          <p className={css.small}>Замена доступна до записи подходов.</p>
+        )}
+        <div className={css.previous}>
+          В прошлый раз
+          <br />
+          {option.previous ? (
+            <>
+              <strong>{option.previous.date}</strong>
+              <br />
+              {option.previous.sets.map(formatSet).join(' · ')}
+            </>
+          ) : (
+            'Предыдущих результатов пока нет'
+          )}
+        </div>
+        <div className={css.setTabs} role="group" aria-label="Подходы">
+          {exercise.sets.map((s, i) => (
+            <button
+              key={`${s.type}-${s.position}`}
+              className={`${i === draft.setIndex ? css.activeTab : ''} ${s.type === 'warmup' ? css.warmup : ''}`}
+              aria-pressed={i === draft.setIndex}
+              onClick={() => change({ ...draft, setIndex: i })}
+            >
+              {s.done ? '✓ ' : ''}
+              {s.type === 'warmup' ? 'Разминка' : s.position}
+              {s.type === 'working' && <small>рабочий</small>}
+            </button>
+          ))}
+        </div>
+        {set.type === 'working' && (
+          <p className={css.subtitle}>
+            План: {formatPlan(option.plan.find((p) => p.position === set.position)!)}
+            {option.perSide ? ' на каждую сторону' : ''}
+          </p>
+        )}
+        <div className={option.weightType === 'none' ? '' : css.two}>
+          {option.weightType !== 'none' && (
+            <NumberField
+              label="Вес, кг"
+              value={set.weight}
+              step={0.5}
+              onChange={(weight) => updateSet({ weight })}
+            />
+          )}
+          <NumberField
+            label={option.measurement === 'reps' ? 'Повторения' : 'Длительность, сек'}
+            value={option.measurement === 'reps' ? set.reps : set.seconds}
+            min={1}
+            onChange={(n) =>
+              updateSet(option.measurement === 'reps' ? { reps: n } : { seconds: n })
+            }
+          />
+        </div>
+        {option.weightType !== 'none' && (
+          <p className={css.small}>Пустой вес означает «неизвестен».</p>
+        )}
+        {set.type === 'working' && previousSet?.type === 'working' && (
+          <button
+            className={css.secondary}
+            disabled={!previousSet.done}
+            onClick={() =>
+              updateSet({
+                weight: previousSet.weight,
+                reps: previousSet.reps,
+                seconds: previousSet.seconds,
+              })
+            }
+          >
+            Скопировать предыдущий подход
+          </button>
+        )}
+        {!editing &&
+          draft.setIndex === 0 &&
+          !exercise.sets.some((s) => s.type === 'warmup' || s.done) && (
+            <button
+              className={css.textButton}
+              onClick={() => updateSets([blankSet(1, 'warmup'), ...exercise.sets], 0)}
+            >
+              + Добавить разминочный подход
+            </button>
+          )}
+        {set.type === 'warmup' && !set.done && !editing && (
+          <button
+            className={css.textButton}
+            onClick={() =>
+              updateSets(
+                exercise.sets.filter((s) => s.type !== 'warmup'),
+                0,
+              )
+            }
+          >
+            Убрать незаписанную разминку
+          </button>
+        )}
+        <button className={css.primary} onClick={mark}>
+          ✓ Подход выполнен
+        </button>
+      </div>
+      <div className={css.section}>
+        {draft.input.exercises.map((e, i) => {
+          const o = draft.workout!.options.find((o) => o.id === e.optionId)!;
+          return (
+            <button
+              key={e.optionId}
+              className={css.row}
+              aria-label={`Открыть упражнение ${i + 1}: ${o.name}`}
+              onClick={() => change({ ...draft, exerciseIndex: i, setIndex: 0 })}
+            >
+              <span>
+                {i + 1}. {o.name}
+                <small>
+                  {workingProgress(e.sets)} из {o.plan.length} рабочих
+                </small>
+              </span>
+              <span>›</span>
+            </button>
+          );
+        })}
+      </div>
+      <dialog ref={dialog} className={css.nativeDialog} onCancel={() => setReplacing(false)}>
+        <div className={css.sheet}>
+          <div className={css.sectionHead}>
+            <h2>Заменить упражнение</h2>
+            <button aria-label="Закрыть замены" onClick={() => setReplacing(false)}>
+              ✕
+            </button>
+          </div>
+          <p className={css.small}>Замена только для этого занятия. Вес не переносится.</p>
+          {alternatives.map((o) => (
+            <button key={o.id} className={css.alternative} onClick={() => replace(o)}>
+              <strong>{o.name}</strong>
+              <small>
+                {o.equipment} · {o.plan.map(formatPlan).join(' / ')}
+                {o.perSide ? ' · на каждую сторону' : ''}
+              </small>
+            </button>
+          ))}
+        </div>
+      </dialog>
+    </>
+  );
+}
