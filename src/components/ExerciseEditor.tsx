@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   blankSet,
   formatPlan,
@@ -31,6 +31,8 @@ export function ExerciseEditor({
   error: string;
 }) {
   const [replacing, setReplacing] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const listId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (replacing) dialog.current?.showModal();
@@ -252,23 +254,44 @@ export function ExerciseEditor({
           </button>
         )}
       </div>
-      <nav className={css.exerciseNav} aria-label="Упражнения тренировки">
-        {draft.input.exercises.map((e, i) => {
-          const o = draft.workout!.options.find((o) => o.id === e.optionId)!;
-          const complete = e.sets.every((s) => s.done);
-          return (
-            <button
-              key={e.optionId}
-              className={i === draft.exerciseIndex ? css.selected : ''}
-              aria-label={`Открыть упражнение ${i + 1}: ${o.name}${complete ? ' · выполнено' : ''}`}
-              aria-current={i === draft.exerciseIndex ? 'step' : undefined}
-              onClick={() => change({ ...draft, exerciseIndex: i, setIndex: 0 })}
-            >
-              {complete ? '✓ ' : ''}
-              {i + 1}
-            </button>
-          );
-        })}
+      <nav className={css.exerciseList} aria-label="Упражнения тренировки">
+        <button
+          className={css.exerciseListToggle}
+          aria-expanded={listOpen}
+          aria-controls={listId}
+          onClick={() => setListOpen(!listOpen)}
+        >
+          <span>{listOpen ? 'Скрыть список упражнений' : 'Показать список упражнений'}</span>
+          <span aria-hidden="true">{listOpen ? '▴' : '▾'}</span>
+        </button>
+        <div id={listId} hidden={!listOpen}>
+          {draft.input.exercises.map((e, i) => {
+            const o = draft.workout!.options.find((o) => o.id === e.optionId)!;
+            const complete = e.sets.every((s) => s.done);
+            const current = i === draft.exerciseIndex;
+            return (
+              <button
+                key={e.optionId}
+                className={css.row}
+                aria-label={`Открыть упражнение ${i + 1}: ${o.name}${complete ? ' · выполнено' : ''}`}
+                aria-current={current ? 'step' : undefined}
+                onClick={() => {
+                  setListOpen(false);
+                  change({ ...draft, exerciseIndex: i, setIndex: 0 });
+                }}
+              >
+                <span>
+                  {i + 1}. {o.name}
+                  <small>
+                    {complete ? 'Выполнено' : current ? 'Сейчас' : 'Впереди'} ·{' '}
+                    {workingProgress(e.sets)} из {o.plan.length} рабочих
+                  </small>
+                </span>
+                <span aria-hidden="true">{complete ? '✓' : '›'}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
       <footer
         className={`${css.actionbar} ${css.workoutActions}`}

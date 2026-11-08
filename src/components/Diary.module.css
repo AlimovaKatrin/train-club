@@ -532,18 +532,24 @@
   margin: 8px 0;
   padding: 8px;
 }
-.exerciseNav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.exerciseList {
   margin-top: 10px;
 }
-.exerciseNav button {
-  flex: 1;
-  min-width: 44px;
+.exerciseListToggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
+  color: var(--accent);
   font-size: 13px;
+}
+.exerciseList .row[aria-current='step'] {
+  color: var(--accent);
+  font-weight: 650;
 }
 .workoutActions {
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));

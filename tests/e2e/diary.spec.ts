@@ -155,6 +155,7 @@ test('exercise navigation waits for skipped sets and supports an already complet
   await page.getByLabel('Повторения', { exact: true }).fill('12');
   await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
   await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Показать список упражнений' }).click();
   await page.getByRole('button', { name: /Открыть упражнение 1/ }).click();
   await expect(page.getByLabel('Повторения', { exact: true })).toHaveValue('10');
   await expect(page.getByRole('status').filter({ hasText: 'Черновик сохранён' })).toBeVisible();
@@ -189,6 +190,24 @@ test('the active set and contextual actions fit a small phone screen', async ({ 
   await expect(actions.getByRole('button', { name: 'Скопировать предыдущий подход' })).toHaveCount(
     0,
   );
+  await fits();
+  const list = page.getByRole('navigation', { name: 'Упражнения тренировки' });
+  await expect(list.getByRole('button', { name: /Открыть упражнение/ })).toHaveCount(0);
+  await list.getByRole('button', { name: 'Показать список упражнений' }).click();
+  await expect(list.getByRole('button', { name: 'Скрыть список упражнений' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await expect(list.getByRole('button', { name: /Открыть упражнение 2/ })).toContainText(
+    'Планка на предплечьях',
+  );
+  await expect(list.getByRole('button', { name: /Открыть упражнение 2/ })).toContainText('Впереди');
+  await list.getByRole('button', { name: 'Скрыть список упражнений' }).click();
+  await expect(list.getByRole('button', { name: 'Показать список упражнений' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(list.getByRole('button', { name: /Открыть упражнение/ })).toHaveCount(0);
   await fits();
   await mark.click();
   await expect(actions.getByRole('alert')).toContainText('Укажи целое положительное');
