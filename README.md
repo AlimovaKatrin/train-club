@@ -40,6 +40,8 @@ npm run dev
 
 ## Проверки
 
+Засеивание рабочей базы: [инструкция и команды](db/PRODUCTION_SEED.md). `npm run db:seed:production` проверяет базу без записи; `npm run db:seed:production -- --apply` применяет миграции и план одной транзакцией.
+
 ```sh
 npm run typecheck
 npm test
