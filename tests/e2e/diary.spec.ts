@@ -94,6 +94,7 @@ test('pilates draft survives reload and an offline submission; editing keeps que
 });
 test('gym replacement, warmup, copy, completion and restoration', async ({ page }) => {
   await prepare(page, 'Зал');
+  await page.getByText('Техника и прошлый результат', { exact: true }).click();
   await page.getByRole('button', { name: 'Заменить упражнение', exact: true }).click();
   await page.getByRole('button', { name: /Тяга гантели с упором/ }).click();
   await expect(page.getByRole('heading', { name: 'Тяга гантели с упором' })).toBeVisible();
@@ -105,11 +106,12 @@ test('gym replacement, warmup, copy, completion and restoration', async ({ page 
   await page.getByLabel('Вес, кг', { exact: true }).fill('7.5');
   await page.getByLabel('Повторения', { exact: true }).fill('12');
   await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
+  await page.getByText('Техника и прошлый результат', { exact: true }).click();
   await expect(
     page.getByRole('button', { name: 'Заменить упражнение', exact: true }),
   ).toBeDisabled();
-  await page.getByRole('button', { name: 'Перейти к итогам →' }).click();
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('Запиши все');
+  await page.getByText('Техника и прошлый результат', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Перейти к итогам →' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Скопировать предыдущий подход' }).click();
   await page.getByRole('button', { name: '✓ Подход выполнен', exact: true }).click();
   await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
@@ -160,6 +162,61 @@ test('exercise navigation waits for skipped sets and supports an already complet
   await page.getByRole('button', { name: /Продолжить: Зал/ }).click();
   await page.getByRole('button', { name: 'Следующее упражнение →', exact: true }).click();
   await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
+});
+test('the active set and contextual actions fit a small phone screen', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await prepare(page, 'Зал');
+  const actions = page.getByRole('group', { name: 'Действия подхода', exact: true });
+  const finish = page.getByRole('button', { name: 'Перейти к итогам →' });
+  const mark = actions.getByRole('button', { name: '✓ Подход выполнен', exact: true });
+  const fits = async () => {
+    const geometry = await page.evaluate(() => ({
+      height: window.innerHeight,
+      width: window.innerWidth,
+      contentHeight: document.documentElement.scrollHeight,
+      contentWidth: document.documentElement.scrollWidth,
+      scrollY: window.scrollY,
+    }));
+    expect(geometry.scrollY).toBe(0);
+    expect(geometry.contentHeight).toBeLessThanOrEqual(geometry.height);
+    expect(geometry.contentWidth).toBeLessThanOrEqual(geometry.width);
+    const fields = await page.getByLabel('Повторения', { exact: true }).boundingBox();
+    const footer = await actions.boundingBox();
+    expect(fields!.y + fields!.height).toBeLessThanOrEqual(footer!.y);
+    await expect(mark).toBeInViewport();
+  };
+  await expect(finish).toHaveCount(0);
+  await expect(actions.getByRole('button', { name: 'Скопировать предыдущий подход' })).toHaveCount(
+    0,
+  );
+  await fits();
+  await mark.click();
+  await expect(actions.getByRole('alert')).toContainText('Укажи целое положительное');
+  await page.getByLabel('Повторения', { exact: true }).fill('12');
+  await mark.click();
+  const copy = actions.getByRole('button', { name: 'Скопировать предыдущий подход' });
+  await expect(copy).toBeInViewport();
+  await fits();
+  await copy.click();
+  await expect(page.getByLabel('Повторения', { exact: true })).toHaveValue('12');
+  await mark.click();
+  await copy.click();
+  await mark.click();
+  await expect(page.getByText('Упражнение 2 из 2', { exact: true })).toBeVisible();
+  await expect(finish).toHaveCount(0);
+  for (let i = 0; i < 2; i++) {
+    await page.getByLabel('Длительность, сек', { exact: true }).fill('30');
+    await mark.click();
+  }
+  await expect(finish).toBeInViewport();
+  await expect(mark).toHaveCount(0);
+  await expect(copy).toHaveCount(0);
+  // Correcting a completed result requires confirming it again before finishing.
+  await page.getByLabel('Длительность, сек', { exact: true }).fill('40');
+  await expect(finish).toHaveCount(0);
+  await mark.click();
+  await finish.click();
+  await expect(page.getByRole('button', { name: 'Завершить и сохранить' })).toBeVisible();
 });
 test('lost server response retries the same saved session without duplicating it', async ({
   page,

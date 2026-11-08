@@ -233,8 +233,9 @@ export function Diary() {
       <span>‹</span>Сегодня
     </button>
   );
+  const isWorkout = view === 'session' && draft?.stage === 'workout';
   return (
-    <div className={css.app}>
+    <div className={`${css.app} ${isWorkout ? css.workoutScreen : ''}`}>
       {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
         <div className={css.demo}>Демо: тестовая программа и отдельная база</div>
       )}
@@ -386,7 +387,14 @@ export function Diary() {
             </button>
             <fieldset disabled={busy} className={css.unstyledFieldset}>
               {draft.stage === 'workout' ? (
-                <ExerciseEditor draft={draft} change={change} onError={setError} />
+                <ExerciseEditor
+                  draft={draft}
+                  change={change}
+                  onError={setError}
+                  onFinish={advance}
+                  status={localStatus}
+                  error={error}
+                />
               ) : (
                 <SessionForm draft={draft} change={change} />
               )}
@@ -509,76 +517,78 @@ export function Diary() {
             )}
           </>
         )}
-        {error && (
+        {error && !isWorkout && (
           <div className={css.error} role="alert">
             {error}
           </div>
         )}
-        {localStatus && (
+        {localStatus && !isWorkout && (
           <p className={css.status} role="status">
             {localStatus}
           </p>
         )}
       </main>
-      <footer className={css.actionbar}>
-        {view === 'home' && (
-          <button
-            className={css.primary}
-            disabled={!draftsReady || !date || (activity === 'gym' && (loading || !data.workout))}
-            onClick={start}
-          >
-            Начать тренировку →
-          </button>
-        )}
-        {view === 'session' && draft && (
-          <button
-            className={css.primary}
-            disabled={busy}
-            onClick={draft.stage === 'finish' ? () => void submit() : advance}
-          >
-            {busy
-              ? 'Сохраняю…'
-              : draft.stage === 'prepare'
-                ? 'Начать занятие →'
-                : draft.stage === 'workout'
-                  ? 'Перейти к итогам →'
-                  : draft.editingRevision !== null
-                    ? 'Сохранить исправления'
-                    : 'Завершить и сохранить'}
-          </button>
-        )}
-        {view === 'detail' && (
-          <button className={css.primary} onClick={edit}>
-            Исправить запись
-          </button>
-        )}
-        {view === 'success' && (
-          <button className={css.primary} onClick={() => navigate('history')}>
-            Открыть дневник →
-          </button>
-        )}
-        {view === 'history' && (
-          <button className={css.primary} onClick={() => navigate('home')}>
-            Новое занятие →
-          </button>
-        )}
-        <nav className={css.nav} aria-label="Основная навигация">
-          <button
-            disabled={busy}
-            aria-current={view === 'home' ? 'page' : undefined}
-            onClick={() => navigate('home')}
-          >
-            ⌂ Сегодня
-          </button>
-          <button
-            disabled={busy}
-            aria-current={view === 'history' ? 'page' : undefined}
-            onClick={() => navigate('history')}
-          >
-            ◷ История
-          </button>
-        </nav>
-      </footer>
+      {!isWorkout && (
+        <footer className={css.actionbar}>
+          {view === 'home' && (
+            <button
+              className={css.primary}
+              disabled={!draftsReady || !date || (activity === 'gym' && (loading || !data.workout))}
+              onClick={start}
+            >
+              Начать тренировку →
+            </button>
+          )}
+          {view === 'session' && draft && (
+            <button
+              className={css.primary}
+              disabled={busy}
+              onClick={draft.stage === 'finish' ? () => void submit() : advance}
+            >
+              {busy
+                ? 'Сохраняю…'
+                : draft.stage === 'prepare'
+                  ? 'Начать занятие →'
+                  : draft.stage === 'workout'
+                    ? 'Перейти к итогам →'
+                    : draft.editingRevision !== null
+                      ? 'Сохранить исправления'
+                      : 'Завершить и сохранить'}
+            </button>
+          )}
+          {view === 'detail' && (
+            <button className={css.primary} onClick={edit}>
+              Исправить запись
+            </button>
+          )}
+          {view === 'success' && (
+            <button className={css.primary} onClick={() => navigate('history')}>
+              Открыть дневник →
+            </button>
+          )}
+          {view === 'history' && (
+            <button className={css.primary} onClick={() => navigate('home')}>
+              Новое занятие →
+            </button>
+          )}
+          <nav className={css.nav} aria-label="Основная навигация">
+            <button
+              disabled={busy}
+              aria-current={view === 'home' ? 'page' : undefined}
+              onClick={() => navigate('home')}
+            >
+              ⌂ Сегодня
+            </button>
+            <button
+              disabled={busy}
+              aria-current={view === 'history' ? 'page' : undefined}
+              onClick={() => navigate('history')}
+            >
+              ◷ История
+            </button>
+          </nav>
+        </footer>
+      )}
     </div>
   );
 }

@@ -19,10 +19,16 @@ export function ExerciseEditor({
   draft,
   change,
   onError,
+  onFinish,
+  status,
+  error,
 }: {
   draft: Draft;
   change: (next: Draft) => void;
   onError: (message: string) => void;
+  onFinish: () => void;
+  status: string;
+  error: string;
 }) {
   const [replacing, setReplacing] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -112,9 +118,23 @@ export function ExerciseEditor({
     0,
   );
   const previousSet = exercise.sets[draft.setIndex - 1];
+  const allDone = draft.input.exercises.every((e) => e.sets.every((s) => s.done));
+  const exerciseDone = exercise.sets.every((s) => s.done);
+  const nextPending = () => {
+    const next = draft.input.exercises.findIndex(
+      (e, i) => i > draft.exerciseIndex && e.sets.some((s) => !s.done),
+    );
+    const index =
+      next === -1 ? draft.input.exercises.findIndex((e) => e.sets.some((s) => !s.done)) : next;
+    if (index !== -1)
+      change({
+        ...draft,
+        exerciseIndex: index,
+        setIndex: draft.input.exercises[index].sets.findIndex((s) => !s.done),
+      });
+  };
   return (
     <>
-      <h1>Твоя тренировка</h1>
       <div className={css.sectionHead}>
         <span className={css.small}>
           Упражнение {draft.exerciseIndex + 1} из {draft.input.exercises.length}
@@ -133,41 +153,40 @@ export function ExerciseEditor({
       >
         <div style={{ width: `${(done / total) * 100}%` }} />
       </div>
-      <div className={css.card}>
-        <span className={css.tag}>{option.plan.length} рабочих подхода</span>
-        <h2>{option.name}</h2>
+      <div className={`${css.card} ${css.exerciseCard}`}>
+        <h1>{option.name}</h1>
         <p className={css.subtitle}>
           {weightNames[option.weightType]}
           {option.perSide ? ' · на каждую сторону' : ''}
-          <br />
-          {option.equipment}
         </p>
-        {option.instructions && <p className={css.small}>{option.instructions}</p>}
-        {!editing && (
-          <button
-            className={css.textButton}
-            disabled={!alternatives.length || hasResults(exercise.sets)}
-            onClick={() => setReplacing(true)}
-          >
-            Заменить упражнение
-          </button>
-        )}
-        {!editing && hasResults(exercise.sets) && (
-          <p className={css.small}>Замена доступна до записи подходов.</p>
-        )}
-        <div className={css.previous}>
-          В прошлый раз
-          <br />
-          {option.previous ? (
-            <>
-              <strong>{option.previous.date}</strong>
-              <br />
-              {option.previous.sets.map(formatSet).join(' · ')}
-            </>
-          ) : (
-            'Предыдущих результатов пока нет'
+        <details className={css.exerciseDetails} key={option.id}>
+          <summary>Техника и прошлый результат</summary>
+          <p className={css.small}>{option.equipment}</p>
+          {option.instructions && <p className={css.small}>{option.instructions}</p>}
+          <div className={css.previous}>
+            В прошлый раз:{' '}
+            {option.previous ? (
+              <>
+                <strong>{option.previous.date}</strong> ·{' '}
+                {option.previous.sets.map(formatSet).join(' · ')}
+              </>
+            ) : (
+              'предыдущих результатов пока нет'
+            )}
+          </div>
+          {!editing && (
+            <button
+              className={css.textButton}
+              disabled={!alternatives.length || hasResults(exercise.sets)}
+              onClick={() => setReplacing(true)}
+            >
+              Заменить упражнение
+            </button>
           )}
-        </div>
+          {!editing && hasResults(exercise.sets) && (
+            <p className={css.small}>Замена доступна до записи подходов.</p>
+          )}
+        </details>
         <div className={css.setTabs} role="group" aria-label="Подходы">
           {exercise.sets.map((s, i) => (
             <button
@@ -209,21 +228,6 @@ export function ExerciseEditor({
         {option.weightType !== 'none' && (
           <p className={css.small}>Пустой вес означает «неизвестен».</p>
         )}
-        {set.type === 'working' && previousSet?.type === 'working' && (
-          <button
-            className={css.secondary}
-            disabled={!previousSet.done}
-            onClick={() =>
-              updateSet({
-                weight: previousSet.weight,
-                reps: previousSet.reps,
-                seconds: previousSet.seconds,
-              })
-            }
-          >
-            Скопировать предыдущий подход
-          </button>
-        )}
         {!editing &&
           draft.setIndex === 0 &&
           !exercise.sets.some((s) => s.type === 'warmup' || s.done) && (
@@ -247,35 +251,71 @@ export function ExerciseEditor({
             Убрать незаписанную разминку
           </button>
         )}
-        <button className={css.primary} onClick={mark}>
-          {!editing &&
-          exercise.sets.every((s) => s.done) &&
-          draft.exerciseIndex < draft.input.exercises.length - 1
-            ? 'Следующее упражнение →'
-            : '✓ Подход выполнен'}
-        </button>
       </div>
-      <div className={css.section}>
+      <nav className={css.exerciseNav} aria-label="Упражнения тренировки">
         {draft.input.exercises.map((e, i) => {
           const o = draft.workout!.options.find((o) => o.id === e.optionId)!;
+          const complete = e.sets.every((s) => s.done);
           return (
             <button
               key={e.optionId}
-              className={css.row}
-              aria-label={`Открыть упражнение ${i + 1}: ${o.name}`}
+              className={i === draft.exerciseIndex ? css.selected : ''}
+              aria-label={`Открыть упражнение ${i + 1}: ${o.name}${complete ? ' · выполнено' : ''}`}
+              aria-current={i === draft.exerciseIndex ? 'step' : undefined}
               onClick={() => change({ ...draft, exerciseIndex: i, setIndex: 0 })}
             >
-              <span>
-                {i + 1}. {o.name}
-                <small>
-                  {workingProgress(e.sets)} из {o.plan.length} рабочих
-                </small>
-              </span>
-              <span>›</span>
+              {complete ? '✓ ' : ''}
+              {i + 1}
             </button>
           );
         })}
-      </div>
+      </nav>
+      <footer
+        className={`${css.actionbar} ${css.workoutActions}`}
+        role="group"
+        aria-label="Действия подхода"
+      >
+        {error && (
+          <div className={css.error} role="alert">
+            {error}
+          </div>
+        )}
+        <div className={css.workoutButtons}>
+          {!allDone &&
+            !exerciseDone &&
+            set.type === 'working' &&
+            previousSet?.type === 'working' && (
+              <button
+                className={css.secondary}
+                aria-label="Скопировать предыдущий подход"
+                disabled={!previousSet.done}
+                onClick={() =>
+                  updateSet({
+                    weight: previousSet.weight,
+                    reps: previousSet.reps,
+                    seconds: previousSet.seconds,
+                  })
+                }
+              >
+                Скопировать
+              </button>
+            )}
+
+          <button
+            className={css.primary}
+            onClick={allDone ? onFinish : exerciseDone ? nextPending : mark}
+          >
+            {allDone
+              ? 'Перейти к итогам →'
+              : exerciseDone
+                ? 'Следующее упражнение →'
+                : '✓ Подход выполнен'}
+          </button>
+        </div>
+        <p className={css.status} role="status">
+          {status}
+        </p>
+      </footer>
       <dialog ref={dialog} className={css.nativeDialog} onCancel={() => setReplacing(false)}>
         <div className={css.sheet}>
           <div className={css.sectionHead}>
