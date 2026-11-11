@@ -70,8 +70,8 @@ describe('workout rules', () => {
       const { input } = newDraft(type, '2026-11-08', null);
       expect(duration(input)).toBe(60);
       expect(input.sleep).toBe(8);
-      expect(input.pulseMin).toBe(100);
-      expect(input.pulseMax).toBe(180);
+      expect(input.pulseMin).toBeNull();
+      expect(input.pulseMax).toBeNull();
       expect(input.exercises).toEqual([]);
       expect(sessionSchema.safeParse({ ...input, wellbeing: 0, exertion: 0 }).success).toBe(true);
       const shorter = { ...input, wellbeing: 0, exertion: 0, durationMinutes: 30 };
@@ -86,7 +86,8 @@ describe('workout rules', () => {
     const { input } = newDraft('boxing', '2026-11-08', null);
     expect(sessionSchema.safeParse(input).success).toBe(false);
     expect(
-      sessionSchema.safeParse({ ...input, wellbeing: 3, exertion: 5, pulseMin: 181 }).success,
+      sessionSchema.safeParse({ ...input, wellbeing: 3, exertion: 5, pulseMin: 181, pulseMax: 180 })
+        .success,
     ).toBe(false);
     expect(
       sessionSchema.safeParse({ ...input, wellbeing: 3, exertion: 5, date: '2026-02-30' }).success,

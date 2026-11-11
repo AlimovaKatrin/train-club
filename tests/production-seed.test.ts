@@ -25,7 +25,11 @@ describe.skipIf(!url)('production seed on a disposable PostgreSQL database', () 
     expect(await run()).toMatchObject({
       mode: 'check',
       action: 'seed',
-      pendingMigrations: ['001_initial.sql', '002_session_duration.sql'],
+      pendingMigrations: [
+        '001_initial.sql',
+        '002_session_duration.sql',
+        '004_export_provenance.sql',
+      ],
     });
     expect(
       (await admin.query("SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public'"))
@@ -47,7 +51,7 @@ describe.skipIf(!url)('production seed on a disposable PostgreSQL database', () 
       appliedMigrations: [],
     });
     expect(await run()).toMatchObject({ action: 'already_loaded', pendingMigrations: [] });
-    expect((await admin.query('SELECT * FROM sessions')).rows).toEqual(before);
+    expect((await admin.query('SELECT * FROM sessions')).rows).toMatchObject(before);
     expect((await admin.query('SELECT count(*)::int AS n FROM exercises')).rows[0].n).toBe(11);
     expect(
       (await admin.query('SELECT revision FROM programs WHERE is_active')).rows[0].revision,
@@ -63,10 +67,10 @@ describe.skipIf(!url)('production seed on a disposable PostgreSQL database', () 
     const before = (await admin.query('SELECT * FROM sessions')).rows;
     expect(await run(true)).toMatchObject({
       action: 'seeded',
-      appliedMigrations: ['002_session_duration.sql'],
+      appliedMigrations: ['002_session_duration.sql', '004_export_provenance.sql'],
       sessions: 1,
     });
-    expect((await admin.query('SELECT * FROM sessions')).rows).toEqual(before);
+    expect((await admin.query('SELECT * FROM sessions')).rows).toMatchObject(before);
     expect((await admin.query('SELECT count(*)::int AS n FROM programs')).rows[0].n).toBe(2);
   });
 

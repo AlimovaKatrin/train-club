@@ -120,9 +120,7 @@ export function Diary() {
         !/^\d{4}-\d{2}-\d{2}$/.test(s.date) ||
         s.wellbeing < 0 ||
         s.wellbeing > 5 ||
-        !Number.isFinite(s.sleep) ||
-        s.sleep < 0 ||
-        s.sleep > 24
+        (s.sleep !== null && (!Number.isFinite(s.sleep) || s.sleep < 0 || s.sleep > 24))
       ) {
         setError('Укажи дату, самочувствие и сон от 0 до 24 часов.');
         return;
@@ -443,7 +441,7 @@ export function Diary() {
             <div className={css.card}>
               {[
                 ['Самочувствие до', `${record.input.wellbeing} / 5`],
-                ['Сон', `${record.input.sleep} ч`],
+                ['Сон', record.input.sleep === null ? 'Не указано' : `${record.input.sleep} ч`],
                 ['Продолжительность', `${duration(record.input)} мин`],
                 ...(record.input.activity === 'gym'
                   ? [
@@ -453,7 +451,12 @@ export function Diary() {
                       ],
                     ]
                   : []),
-                ['Пульс', `${record.input.pulseMin}–${record.input.pulseMax} уд/мин`],
+                [
+                  'Пульс',
+                  record.input.pulseMin === null && record.input.pulseMax === null
+                    ? 'Не измерен'
+                    : `${record.input.pulseMin ?? '—'}–${record.input.pulseMax ?? '—'} уд/мин`,
+                ],
                 ['Тяжесть', `${record.input.exertion} / 10`],
               ].map(([label, value]) => (
                 <div className={css.row} key={label}>

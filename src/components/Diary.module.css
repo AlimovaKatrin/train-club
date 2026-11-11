@@ -575,3 +575,13 @@
   margin: 0 0 8px;
   padding: 8px;
 }
+
+.sourceHint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  margin: -4px 0 8px;
+}

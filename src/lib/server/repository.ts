@@ -28,7 +28,7 @@ function mapSet(r: Record<string, unknown>): SetResult {
 }
 export async function loadWorkout(db: Db, templateId?: string): Promise<Workout | null> {
   const { rows: templates } = await db.query(
-    `SELECT t.*,p.revision,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE ${templateId ? 't.id=$1' : "p.is_active AND p.status='published' AND t.position=p.next_position"}`,
+    `SELECT t.*,p.revision,p.version AS program_version,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE ${templateId ? 't.id=$1' : "p.is_active AND p.status='published' AND t.position=p.next_position"}`,
     templateId ? [templateId] : [],
   );
   const t = templates[0];
@@ -83,6 +83,7 @@ export async function loadWorkout(db: Db, templateId?: string): Promise<Workout 
     templateId: t.id,
     notes: t.notes,
     programId: t.program_id,
+    programVersion: t.program_version,
     revision: t.revision,
     position: t.position,
     name: t.name,
@@ -129,12 +130,16 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
           seconds: p.target_duration_seconds,
         })),
     });
-    exercises.push({ optionId: e.exercise_option_id, sets: sets.map(mapSet) });
+    exercises.push({
+      optionId: e.exercise_option_id,
+      equipmentNote: e.equipment_note,
+      sets: sets.map(mapSet),
+    });
   }
   // Historical exercise metadata and plans come exclusively from snapshots, never the catalog.
   const { rows: ts } = s.workout_template_id
     ? await db.query(
-        'SELECT t.*,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE t.id=$1',
+        'SELECT t.*,p.version AS program_version,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE t.id=$1',
         [s.workout_template_id],
       )
     : { rows: [] };
@@ -143,6 +148,7 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
     ? {
         templateId: t.id,
         programId: t.program_id,
+        programVersion: t.program_version,
         revision: 0,
         position: t.position,
         name: t.name,
@@ -159,7 +165,7 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
       activity: s.activity_type,
       date: s.date,
       wellbeing: s.wellbeing,
-      sleep: Number(s.sleep_hours),
+      sleep: numberOrNull(s.sleep_hours),
       warmup: s.warmup_minutes,
       main: s.main_minutes,
       cardio: s.cardio_minutes,
@@ -168,6 +174,8 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
       pulseMax: s.heart_rate_max,
       exertion: s.exertion,
       notes: s.notes,
+      provenance: s.provenance,
+      pulseDevice: s.pulse_device,
       templateId: s.workout_template_id,
       programRevision: t ? 0 : null,
       planToken: t ? 'history' : null,
@@ -213,7 +221,7 @@ async function insertExercises(db: Db, input: SessionInput, selected: ExerciseOp
   for (let i = 0; i < selected.length; i++) {
     const o = selected[i];
     const { rows } = await db.query(
-      `INSERT INTO session_exercises(session_id,exercise_option_id,exercise_id,position,name,equipment,measurement_type,weight_type,per_side,instructions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      `INSERT INTO session_exercises(session_id,exercise_option_id,exercise_id,position,name,equipment,measurement_type,weight_type,per_side,instructions,equipment_note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
       [
         input.id,
         o.id,
@@ -225,6 +233,7 @@ async function insertExercises(db: Db, input: SessionInput, selected: ExerciseOp
         o.weightType,
         o.perSide,
         o.instructions,
+        input.exercises[i].equipmentNote ?? null,
       ],
     );
     for (const s of input.exercises[i].sets) {
@@ -286,7 +295,7 @@ export async function saveSession(raw: unknown) {
     }
     const selected = validatedOptions(input, workout);
     await db.query(
-      `INSERT INTO sessions(id,activity_type,performed_on,workout_template_id,wellbeing,sleep_hours,warmup_minutes,main_minutes,cardio_minutes,fixed_duration_minutes,heart_rate_min,heart_rate_max,exertion,notes,request_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      `INSERT INTO sessions(id,activity_type,performed_on,workout_template_id,wellbeing,sleep_hours,warmup_minutes,main_minutes,cardio_minutes,fixed_duration_minutes,heart_rate_min,heart_rate_max,exertion,notes,request_hash,provenance,pulse_device,workout_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         input.id,
         input.activity,
@@ -303,6 +312,15 @@ export async function saveSession(raw: unknown) {
         input.exertion,
         input.notes,
         fingerprint,
+        JSON.stringify(input.provenance ?? {}),
+        input.pulseDevice ?? null,
+        workout
+          ? JSON.stringify({
+              ...workout,
+              token: undefined,
+              options: workout.options.map(({ previous: _previous, ...option }) => option),
+            })
+          : null,
       ],
     );
     await insertExercises(db, input, selected);
@@ -338,7 +356,7 @@ export async function editSession(raw: unknown, revision: number) {
       );
     const selected = validatedOptions(input, old.workout);
     await db.query(
-      `UPDATE sessions SET performed_on=$2,wellbeing=$3,sleep_hours=$4,warmup_minutes=$5,main_minutes=$6,cardio_minutes=$7,heart_rate_min=$8,heart_rate_max=$9,exertion=$10,notes=$11,revision=revision+1,updated_at=now(),request_hash=$12,fixed_duration_minutes=$13 WHERE id=$1`,
+      `UPDATE sessions SET performed_on=$2,wellbeing=$3,sleep_hours=$4,warmup_minutes=$5,main_minutes=$6,cardio_minutes=$7,heart_rate_min=$8,heart_rate_max=$9,exertion=$10,notes=$11,revision=revision+1,updated_at=now(),request_hash=$12,fixed_duration_minutes=$13,provenance=$14,pulse_device=$15 WHERE id=$1`,
       [
         input.id,
         input.date,
@@ -353,6 +371,8 @@ export async function editSession(raw: unknown, revision: number) {
         input.notes,
         fingerprint,
         input.durationMinutes,
+        JSON.stringify(input.provenance ?? {}),
+        input.pulseDevice ?? null,
       ],
     );
     await db.query(

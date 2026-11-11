@@ -164,6 +164,27 @@ export function ExerciseEditor({
         <details className={css.exerciseDetails} key={option.id}>
           <summary>Техника и прошлый результат</summary>
           <p className={css.small}>{option.equipment}</p>
+          <label className={css.field}>
+            <span>Модель тренажёра или заметка об оборудовании</span>
+            <input
+              value={exercise.equipmentNote ?? ''}
+              maxLength={300}
+              placeholder="Необязательно, например номер тренажёра"
+              onChange={(e) =>
+                change({
+                  ...draft,
+                  input: {
+                    ...draft.input,
+                    exercises: draft.input.exercises.map((item, i) =>
+                      i === draft.exerciseIndex
+                        ? { ...item, equipmentNote: e.target.value || null }
+                        : item,
+                    ),
+                  },
+                })
+              }
+            />
+          </label>
           {option.instructions && <p className={css.small}>{option.instructions}</p>}
           <div className={css.previous}>
             В прошлый раз:{' '}

@@ -12,6 +12,7 @@ export type PlannedSet = {
   repsMin: number | null;
   repsMax: number | null;
   seconds: number | null;
+  secondsMax?: number | null;
 };
 export type ExerciseOption = {
   id: string;
@@ -30,6 +31,7 @@ export type ExerciseOption = {
 export type Workout = {
   notes?: string;
   programId: string;
+  programVersion?: number;
   revision: number;
   templateId: string;
   position: number;
@@ -50,32 +52,81 @@ export const setSchema = z
   })
   .strict();
 export type SetResult = z.infer<typeof setSchema>;
+export const provenanceFields = [
+  'sleep',
+  'pulseMin',
+  'pulseMax',
+  'durationMinutes',
+  'warmup',
+  'main',
+  'cardio',
+] as const;
+export type ProvenanceField = (typeof provenanceFields)[number];
+export const sourceSchema = z.enum(['user_confirmed', 'device', 'default', 'unknown']);
+export type ValueSource = z.infer<typeof sourceSchema>;
+export const provenanceSchema = z
+  .object({
+    sleep: sourceSchema.optional(),
+    pulseMin: sourceSchema.optional(),
+    pulseMax: sourceSchema.optional(),
+    durationMinutes: sourceSchema.optional(),
+    warmup: sourceSchema.optional(),
+    main: sourceSchema.optional(),
+    cardio: sourceSchema.optional(),
+  })
+  .strict();
+export const sourceNames: Record<ValueSource, string> = {
+  user_confirmed: 'Подтверждено тобой',
+  device: 'Получено с устройства',
+  default: 'По умолчанию · не подтверждено',
+  unknown: 'Источник неизвестен',
+};
+export function fieldSource(
+  input: { provenance?: Partial<Record<ProvenanceField, ValueSource>> },
+  field: ProvenanceField,
+): ValueSource {
+  return input.provenance?.[field] ?? 'unknown';
+}
+export function trustedSource(source: ValueSource) {
+  return source === 'user_confirmed' || source === 'device';
+}
 export const sessionSchema = z
   .object({
     id: z.uuid(),
     activity: z.enum(['gym', 'pilates', 'boxing']),
     date: z.iso.date(),
     wellbeing: z.number().int().min(0).max(5),
-    sleep: z.number().min(0).max(24),
+    sleep: z.number().min(0).max(24).nullable(),
     warmup: z.number().int().min(0).max(1440).nullable(),
     main: z.number().int().min(0).max(1440).nullable(),
     cardio: z.number().int().min(0).max(1440).nullable(),
     durationMinutes: z.number().int().min(1).max(1440).nullable(),
-    pulseMin: z.number().int().positive().max(400),
-    pulseMax: z.number().int().positive().max(400),
+    pulseMin: z.number().int().positive().max(400).nullable(),
+    pulseMax: z.number().int().positive().max(400).nullable(),
     exertion: z.number().int().min(0).max(10),
     notes: z.string().max(5000),
+    provenance: provenanceSchema.optional(),
+    pulseDevice: z.string().trim().max(200).nullable().optional(),
     templateId: z.uuid().nullable(),
     programRevision: z.number().int().nonnegative().nullable(),
     planToken: z.string().nullable(),
     exercises: z
-      .array(z.object({ optionId: z.uuid(), sets: z.array(setSchema).max(101) }).strict())
+      .array(
+        z
+          .object({
+            optionId: z.uuid(),
+            equipmentNote: z.string().trim().max(300).nullable().optional(),
+            sets: z.array(setSchema).max(101),
+          })
+          .strict(),
+      )
       .max(100),
   })
   .strict()
   .superRefine((s, ctx) => {
     const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
-    if (s.pulseMin > s.pulseMax) fail('Минимальный пульс не может быть выше максимального.');
+    if (s.pulseMin !== null && s.pulseMax !== null && s.pulseMin > s.pulseMax)
+      fail('Минимальный пульс не может быть выше максимального.');
     if (s.activity === 'gym') {
       if (s.durationMinutes !== null) fail('Для зала время указывается по частям занятия.');
       if (!s.templateId || s.programRevision === null || !s.planToken || !s.exercises.length)
@@ -145,8 +196,18 @@ export function newDraft(activity: Activity, date: string, workout: Workout | nu
       date,
       wellbeing: -1,
       sleep: 8,
-      pulseMin: 100,
-      pulseMax: 180,
+      pulseMin: null,
+      pulseMax: null,
+      pulseDevice: null,
+      provenance: {
+        sleep: 'default',
+        pulseMin: 'unknown',
+        pulseMax: 'unknown',
+        durationMinutes: gym ? 'unknown' : 'default',
+        warmup: gym ? 'default' : 'unknown',
+        main: gym ? 'default' : 'unknown',
+        cardio: gym ? 'default' : 'unknown',
+      },
       exertion: -1,
       notes: '',
       warmup: gym ? 0 : null,
