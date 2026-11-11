@@ -28,6 +28,7 @@ describe.skipIf(!url)('production seed on a disposable PostgreSQL database', () 
       pendingMigrations: [
         '001_initial.sql',
         '002_session_duration.sql',
+        '003_next_cycle.sql',
         '004_export_provenance.sql',
       ],
     });
@@ -67,7 +68,11 @@ describe.skipIf(!url)('production seed on a disposable PostgreSQL database', () 
     const before = (await admin.query('SELECT * FROM sessions')).rows;
     expect(await run(true)).toMatchObject({
       action: 'seeded',
-      appliedMigrations: ['002_session_duration.sql', '004_export_provenance.sql'],
+      appliedMigrations: [
+        '002_session_duration.sql',
+        '003_next_cycle.sql',
+        '004_export_provenance.sql',
+      ],
       sessions: 1,
     });
     expect((await admin.query('SELECT * FROM sessions')).rows).toMatchObject(before);

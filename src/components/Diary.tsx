@@ -276,7 +276,7 @@ export function Diary() {
             </div>
             {activity === 'gym' ? (
               <div className={css.next}>
-                <span className={css.small}>Следующая по плану · блок из 8</span>
+                <span className={css.small}>Следующая по плану</span>
                 {loading ? (
                   <h2>Загружаю план…</h2>
                 ) : data.workout ? (
@@ -285,9 +285,9 @@ export function Diary() {
                     <p>{data.workout.programName}</p>
                     <div
                       className={css.sequence}
-                      aria-label={`Следующая тренировка ${data.workout.position} из 8`}
+                      aria-label={`Следующая тренировка ${data.workout.position} из ${data.workout.totalWorkouts}`}
                     >
-                      {Array.from({ length: 8 }, (_, i) => (
+                      {Array.from({ length: data.workout.totalWorkouts }, (_, i) => (
                         <span
                           key={i}
                           className={i + 1 === data.workout!.position ? css.current : ''}
@@ -296,12 +296,15 @@ export function Diary() {
                         </span>
                       ))}
                     </div>
-                    <p>После восьмой — новый круг. Без спешки.</p>
+                    <p>
+                      После №{data.workout.totalWorkouts} — снова №{data.workout.repeatFrom}. Без
+                      спешки.
+                    </p>
                   </>
                 ) : (
                   <>
                     <h2>Программа пока не добавлена</h2>
-                    <p>Здесь появятся восемь тренировок и замены, согласованные с тренером.</p>
+                    <p>Здесь появятся тренировки и замены из твоей программы.</p>
                   </>
                 )}
               </div>
@@ -515,7 +518,8 @@ export function Diary() {
             </div>
             {data.workout && (
               <p className={css.subtitle}>
-                Следующая в зале — тренировка {data.workout.position} из 8.
+                Следующая в зале — тренировка {data.workout.position} из{' '}
+                {data.workout.totalWorkouts}.
               </p>
             )}
           </>

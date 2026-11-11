@@ -102,16 +102,17 @@
   margin-top: 10px;
 }
 .sequence {
-  display: flex;
-  justify-content: space-between;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  justify-items: center;
+  gap: 8px 5px;
   margin: 22px 0;
 }
 .sequence span {
   border: 1px solid #a6b49d;
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  width: min(28px, 100%);
+  aspect-ratio: 1;
   display: grid;
   place-items: center;
   font-size: 11px;

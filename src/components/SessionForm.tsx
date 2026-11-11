@@ -49,7 +49,9 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
         <h1>Перед занятием</h1>
         <p className={css.subtitle}>
           {activityNames[s.activity]}
-          {s.activity === 'gym' ? ` · тренировка ${draft.workout!.position} из 8` : ''}
+          {s.activity === 'gym'
+            ? ` · тренировка ${draft.workout!.position} из ${draft.workout!.totalWorkouts}`
+            : ''}
         </p>
         {s.activity === 'gym' && draft.workout?.notes && (
           <p className={css.small}>{draft.workout.notes}</p>

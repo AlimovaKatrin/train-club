@@ -19,6 +19,7 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
       fixed_duration_minutes,heart_rate_min,heart_rate_max,exertion,request_hash)
       VALUES(gen_random_uuid(),'pilates','2026-11-01',3,8,60,90,140,4,'legacy')`);
     await admin.query(await readFile('db/migrations/002_session_duration.sql', 'utf8'));
+    await admin.query(await readFile('db/migrations/003_next_cycle.sql', 'utf8'));
     await admin.query(await readFile('db/migrations/004_export_provenance.sql', 'utf8'));
     expect(
       (await admin.query('SELECT fixed_duration_minutes FROM sessions')).rows[0]
@@ -211,6 +212,6 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
   it('does not allow a published program without eight workouts', async () => {
     await expect(
       admin.query("INSERT INTO programs(name,version,status) VALUES('Invalid',1,'published')"),
-    ).rejects.toThrow('Eight workouts');
+    ).rejects.toThrow('8 consecutive workouts');
   });
 });

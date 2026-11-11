@@ -14,6 +14,8 @@ import { loadTrainingExport } from '../src/lib/server/training-export';
 import { bootstrap, saveSession, editSession } from '../src/lib/server/repository';
 import { pool } from '../src/lib/server/db';
 import { canExport } from '../src/lib/server/export-access';
+import { seedProduction } from '../scripts/seed-production.mjs';
+import { seedNextCycle } from '../scripts/seed-next-cycle.mjs';
 import { GET } from '../src/app/review/[key]/download/route';
 const now = new Date('2026-11-11T21:30:00Z');
 const all = exportQuerySchema.parse({ range: 'all' });
@@ -91,8 +93,16 @@ describe.skipIf(!url)('training export with PostgreSQL snapshots', () => {
     admin = new pg.Client({ connectionString: url });
     await admin.connect();
     await admin.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
-    for (const file of ['001_initial.sql', '002_session_duration.sql', '004_export_provenance.sql'])
+    await admin.query('CREATE TABLE schema_migrations (name text PRIMARY KEY)');
+    for (const file of [
+      '001_initial.sql',
+      '002_session_duration.sql',
+      '003_next_cycle.sql',
+      '004_export_provenance.sql',
+    ]) {
       await admin.query(await readFile(`db/migrations/${file}`, 'utf8'));
+      await admin.query('INSERT INTO schema_migrations(name) VALUES ($1)', [file]);
+    }
   });
   beforeEach(async () => {
     await admin.query(
@@ -237,6 +247,22 @@ describe.skipIf(!url)('training export with PostgreSQL snapshots', () => {
     future[1].program!.version = 2;
     future[1].program!.workoutNumber = 16;
     expect(buildTrainingExport(future, all, now).sessions[1].program!.workoutNumber).toBe(16);
+  });
+  it('exports the real second-cycle version and saved time ranges without mixing programs', async () => {
+    await seedProduction({ connectionString: url!, apply: true });
+    const old = (await saveSession(await gym('2026-11-01')))!;
+    await seedNextCycle({ connectionString: url!, apply: true });
+    await admin.query('UPDATE programs SET next_position=11 WHERE is_active');
+    await saveSession(await gym('2026-11-11'));
+    const exported = await loadTrainingExport(all, now);
+    expect(exported.sessions[0].program).toMatchObject({ version: 1, workoutNumber: 1 });
+    expect(exported.sessions[1].program).toMatchObject({ version: 2, workoutNumber: 11 });
+    expect(exported.sessions[0].program!.id).not.toBe(exported.sessions[1].program!.id);
+    const plank = exported.sessions[1].exercises.find((e) => e.name === 'Боковая планка с колен')!;
+    expect(plank.perSide).toBe(true);
+    expect(plank.sets[0].plan!.seconds).toEqual({ min: 20, max: 30 });
+    await editSession({ ...old.input, notes: 'Исправление в старой версии' }, old.revision);
+    expect((await loadTrainingExport(all, now)).sessions[0].program!.version).toBe(1);
   });
   it('exports an empty valid document, optional null sleep/pulse and unconfirmed defaults', async () => {
     const empty = await loadTrainingExport(all, now);
