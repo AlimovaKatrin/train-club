@@ -12,6 +12,7 @@ export type PlannedSet = {
   repsMin: number | null;
   repsMax: number | null;
   seconds: number | null;
+  secondsMax?: number | null;
 };
 export type ExerciseOption = {
   id: string;
@@ -29,6 +30,8 @@ export type ExerciseOption = {
 };
 export type Workout = {
   notes?: string;
+  totalWorkouts: number;
+  repeatFrom: number;
   programId: string;
   revision: number;
   templateId: string;
@@ -115,8 +118,8 @@ export function duration(
     ? (s.warmup ?? 0) + (s.main ?? 0) + (s.cardio ?? 0)
     : (s.durationMinutes ?? 0);
 }
-export function nextPosition(position: number) {
-  return (position % 8) + 1;
+export function nextPosition(position: number, totalWorkouts = 8, repeatFrom = 1) {
+  return position < totalWorkouts ? position + 1 : repeatFrom;
 }
 export function blankSet(position: number, type: SetResult['type'] = 'working'): SetResult {
   return { position, type, weight: null, reps: null, seconds: null, done: false };
@@ -194,6 +197,6 @@ export function formatSet(s: SetResult) {
 }
 export function formatPlan(p: PlannedSet) {
   return p.seconds !== null
-    ? `${p.seconds} сек`
+    ? `${p.seconds}${p.secondsMax != null && p.secondsMax !== p.seconds ? `–${p.secondsMax}` : ''} сек`
     : `${p.repsMin}${p.repsMax !== p.repsMin ? `–${p.repsMax}` : ''} повт.`;
 }

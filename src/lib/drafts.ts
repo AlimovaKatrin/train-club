@@ -37,6 +37,13 @@ export async function readDrafts(): Promise<Draft[]> {
     // Drafts written before editable duration used an implicit hour.
     return rows.map((draft: Draft) => ({
       ...draft,
+      workout: draft.workout
+        ? {
+            ...draft.workout,
+            totalWorkouts: draft.workout.totalWorkouts ?? 8,
+            repeatFrom: draft.workout.repeatFrom ?? 1,
+          }
+        : null,
       input: {
         ...draft.input,
         durationMinutes:

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blankSet,
   duration,
+  formatPlan,
   hasResults,
   nextPosition,
   newDraft,
@@ -30,6 +31,16 @@ const option: ExerciseOption = {
 };
 describe('workout rules', () => {
   it('wraps the queue from eight to one', () => expect(nextPosition(8)).toBe(1));
+  it('continues to the new cycle and repeats only workouts 9–16', () => {
+    expect(nextPosition(8, 16, 9)).toBe(9);
+    expect(nextPosition(15, 16, 9)).toBe(16);
+    expect(nextPosition(16, 16, 9)).toBe(9);
+  });
+  it('shows time ranges while keeping exact times unchanged', () => {
+    const plan = { position: 1, repsMin: null, repsMax: null, seconds: 20 };
+    expect(formatPlan(plan)).toBe('20 сек');
+    expect(formatPlan({ ...plan, secondsMax: 30 })).toBe('20–30 сек');
+  });
   it('warmup does not replace or count as a working set', () => {
     const sets = [{ ...blankSet(1, 'warmup'), done: true, reps: 12 }, ...optionSets(option)];
     expect(workingProgress(sets)).toBe(0);

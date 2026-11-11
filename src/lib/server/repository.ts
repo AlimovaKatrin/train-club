@@ -28,7 +28,7 @@ function mapSet(r: Record<string, unknown>): SetResult {
 }
 export async function loadWorkout(db: Db, templateId?: string): Promise<Workout | null> {
   const { rows: templates } = await db.query(
-    `SELECT t.*,p.revision,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE ${templateId ? 't.id=$1' : "p.is_active AND p.status='published' AND t.position=p.next_position"}`,
+    `SELECT t.*,p.revision,p.workout_count,p.repeat_from,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE ${templateId ? 't.id=$1' : "p.is_active AND p.status='published' AND t.position=p.next_position"}`,
     templateId ? [templateId] : [],
   );
   const t = templates[0];
@@ -64,6 +64,9 @@ export async function loadWorkout(db: Db, templateId?: string): Promise<Workout 
         repsMin: p.target_reps_min,
         repsMax: p.target_reps_max,
         seconds: p.target_duration_seconds,
+        ...(p.target_duration_seconds_max != null
+          ? { secondsMax: p.target_duration_seconds_max }
+          : {}),
       })),
       previous: prior
         ? {
@@ -82,6 +85,8 @@ export async function loadWorkout(db: Db, templateId?: string): Promise<Workout 
   return {
     templateId: t.id,
     notes: t.notes,
+    totalWorkouts: t.workout_count,
+    repeatFrom: t.repeat_from,
     programId: t.program_id,
     revision: t.revision,
     position: t.position,
@@ -127,6 +132,9 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
           repsMin: p.target_reps_min,
           repsMax: p.target_reps_max,
           seconds: p.target_duration_seconds,
+          ...(p.target_duration_seconds_max != null
+            ? { secondsMax: p.target_duration_seconds_max }
+            : {}),
         })),
     });
     exercises.push({ optionId: e.exercise_option_id, sets: sets.map(mapSet) });
@@ -134,7 +142,7 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
   // Historical exercise metadata and plans come exclusively from snapshots, never the catalog.
   const { rows: ts } = s.workout_template_id
     ? await db.query(
-        'SELECT t.*,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE t.id=$1',
+        'SELECT t.*,p.workout_count,p.repeat_from,p.name AS program_name FROM workout_templates t JOIN programs p ON p.id=t.program_id WHERE t.id=$1',
         [s.workout_template_id],
       )
     : { rows: [] };
@@ -142,6 +150,8 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
   const workout: Workout | null = t
     ? {
         templateId: t.id,
+        totalWorkouts: t.workout_count,
+        repeatFrom: t.repeat_from,
         programId: t.program_id,
         revision: 0,
         position: t.position,
@@ -230,7 +240,7 @@ async function insertExercises(db: Db, input: SessionInput, selected: ExerciseOp
     for (const s of input.exercises[i].sets) {
       const plan = s.type === 'working' ? o.plan.find((p) => p.position === s.position) : null;
       await db.query(
-        `INSERT INTO session_sets(session_exercise_id,set_type,position,target_reps_min,target_reps_max,target_duration_seconds,weight_kg,reps,duration_seconds,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        `INSERT INTO session_sets(session_exercise_id,set_type,position,target_reps_min,target_reps_max,target_duration_seconds,weight_kg,reps,duration_seconds,status,target_duration_seconds_max) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           rows[0].id,
           s.type,
@@ -242,6 +252,7 @@ async function insertExercises(db: Db, input: SessionInput, selected: ExerciseOp
           s.reps,
           s.seconds,
           s.done ? 'done' : 'unrecorded',
+          plan?.secondsMax ?? null,
         ],
       );
     }
@@ -308,7 +319,7 @@ export async function saveSession(raw: unknown) {
     await insertExercises(db, input, selected);
     if (workout)
       await db.query('UPDATE programs SET next_position=$1,revision=revision+1 WHERE id=$2', [
-        nextPosition(workout.position),
+        nextPosition(workout.position, workout.totalWorkouts, workout.repeatFrom),
         workout.programId,
       ]);
     return loadSession(db, input.id);

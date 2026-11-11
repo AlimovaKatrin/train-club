@@ -17,6 +17,7 @@
     "db:seed:demo": "node --env-file-if-exists=.env.local scripts/db.mjs demo",
     "db:seed:personal": "node --env-file-if-exists=.env.local scripts/db.mjs personal",
     "db:seed:production": "node scripts/seed-production.mjs",
+    "db:seed:next-cycle": "node scripts/seed-next-cycle.mjs",
     "db:history:clear": "node scripts/clear-history.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
