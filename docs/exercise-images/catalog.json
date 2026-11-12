@@ -1,0 +1,236 @@
+[
+  {
+    "id": "0bc6b11f-e81c-4ecf-a458-a5ce5c30159b",
+    "name": "Боковая планка с колен",
+    "per_side": true,
+    "equipment": "Коврик",
+    "weight_type": "none",
+    "instructions": "Опирайся на предплечье и согнутые колени. Удерживай 20–30 секунд с каждой стороны.",
+    "measurement_type": "time"
+  },
+  {
+    "id": "4ed9a903-4f90-4515-8fe0-1b12732aea48",
+    "name": "Гакк-присед",
+    "per_side": false,
+    "equipment": "Гакк-тренажёр",
+    "weight_type": "machine",
+    "instructions": "Записывай выбранный вес в кг или сумму навешенных блинов. Сравнивай результаты на одном тренажёре.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "cedf5b70-8b0d-4f73-9402-7e8afef975e6",
+    "name": "Гоблет-присед",
+    "per_side": false,
+    "equipment": "Одна гантель или гиря",
+    "weight_type": "total",
+    "instructions": "Держи снаряд перед грудью и приседай в контролируемой амплитуде",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "2a6ab4ec-9973-444a-8ffd-cf3c5dd65b41",
+    "name": "Жим гантелей вверх сидя",
+    "per_side": false,
+    "equipment": "Две гантели, скамья",
+    "weight_type": "dumbbell",
+    "instructions": "Записывай вес одной гантели; удерживай корпус устойчивым.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "b9088881-3199-46b7-883a-d68a71ec8d74",
+    "name": "Жим гантелей лёжа на полу",
+    "per_side": false,
+    "equipment": "Две гантели, коврик",
+    "weight_type": "dumbbell",
+    "instructions": "Плечи мягко касаются пола в нижней точке, затем выжми гантели",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "d51bee53-e42b-48fe-bcfd-868fe9211e23",
+    "name": "Жим гантелей на горизонтальной скамье",
+    "per_side": false,
+    "equipment": "Две гантели, горизонтальная скамья",
+    "weight_type": "dumbbell",
+    "instructions": "Опусти гантели по сторонам груди и выжми вверх",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "880e4c1d-76f5-4bb8-9be0-f4c74482beb4",
+    "name": "Жим гантелей на наклонной скамье",
+    "per_side": false,
+    "equipment": "Две гантели, регулируемая скамья",
+    "weight_type": "dumbbell",
+    "instructions": "Записывай вес одной гантели. Сохраняй одинаковый угол скамьи.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "f31bdae8-bc61-4eaf-84a7-7ff73cb19075",
+    "name": "Жим ногами",
+    "per_side": false,
+    "equipment": "Тренажёр для жима ногами",
+    "weight_type": "machine",
+    "instructions": "Сохраняй таз на сиденье. Записывай выбранный вес в кг или сумму навешенных блинов.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "3e219fab-4d16-4387-9739-e623b45cc86a",
+    "name": "Жим штанги лёжа",
+    "per_side": false,
+    "equipment": "Скамья, стойки, штанга",
+    "weight_type": "total",
+    "instructions": "Записывай общий вес с грифом. Используй ограничители или помощь страхующего.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "95781842-6ffc-4d8a-b748-f40e3f440f7c",
+    "name": "Мёртвый жук",
+    "per_side": true,
+    "equipment": "Коврик",
+    "weight_type": "none",
+    "instructions": "Лёжа на спине, поочерёдно опускай противоположные руку и ногу. Повторы указаны на каждую сторону.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "27358834-e6fd-47cf-8d9a-9f8cd1bc6947",
+    "name": "Подъём на носки стоя в тренажёре",
+    "per_side": false,
+    "equipment": "Тренажёр для икр",
+    "weight_type": "machine",
+    "instructions": "Выполняй двумя ногами одновременно. Записывай выбранный вес в кг или сумму блинов.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "c92237bc-41c1-4aa1-a744-22f0ee72330e",
+    "name": "Разведение гантелей в стороны",
+    "per_side": false,
+    "equipment": "Две гантели",
+    "weight_type": "dumbbell",
+    "instructions": "Поднимай руки в стороны без разгона корпусом. Записывай вес одной гантели.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "3a593420-18ae-4ed7-9b8c-3126c3b84b44",
+    "name": "Румынская тяга с гантелями",
+    "per_side": false,
+    "equipment": "Две гантели",
+    "weight_type": "dumbbell",
+    "instructions": "Отводи таз назад, гантели веди близко к ногам; колени слегка согнуты",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "5b6cc3c2-e3c3-4084-a72f-a58595e73eaa",
+    "name": "Сгибание ног лёжа",
+    "per_side": false,
+    "equipment": "Тренажёр для сгибания ног лёжа",
+    "weight_type": "machine",
+    "instructions": "Подводи пятки к ягодицам, сохраняя таз на подушке Выполняй двумя ногами одновременно. Записывай выбранный вес тренажёра в килограммах. Вес для каждого тренажёра подбирай отдельно.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "76b5ff64-2210-4555-9818-da8d867fea67",
+    "name": "Сгибание ног сидя",
+    "per_side": false,
+    "equipment": "Тренажёр для сгибания ног сидя",
+    "weight_type": "machine",
+    "instructions": "Сгибай колени, перемещая валик назад; работает задняя поверхность бедра Выполняй двумя ногами одновременно. Записывай выбранный вес тренажёра в килограммах. Вес для каждого тренажёра подбирай отдельно.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "4f9f0598-56a5-417a-be2d-94a6f0f59ad8",
+    "name": "Сгибание рук «молотком»",
+    "per_side": false,
+    "equipment": "Две гантели",
+    "weight_type": "dumbbell",
+    "instructions": "Обе руки одновременно, ладони обращены друг к другу. Записывай вес одной гантели.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "23a68f54-cf07-476c-96a8-b6843aa129d8",
+    "name": "Сгибание рук на блоке",
+    "per_side": false,
+    "equipment": "Нижний блок, общая рукоять",
+    "weight_type": "machine",
+    "instructions": "Сгибай обе руки одновременно. Записывай выбранный вес блока в кг.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "42cef85e-0336-4ce9-ae8b-bc705755e9df",
+    "name": "Сгибание рук с гантелями",
+    "per_side": false,
+    "equipment": "Две гантели",
+    "weight_type": "dumbbell",
+    "instructions": "Выполняй одновременно двумя руками. Записывай вес одной гантели.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "83c198b2-3e99-4068-9cb6-193cac653661",
+    "name": "Сплит-присед с опорой без гантели",
+    "per_side": true,
+    "equipment": "Устойчивая опора",
+    "weight_type": "none",
+    "instructions": "Стопы стоят в разножке и не переставляются между повторами Держись рукой за опору.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "7d204bff-f4c4-41fd-aa4b-042cbd4881e3",
+    "name": "Сплит-присед с опорой и одной гантелью",
+    "per_side": true,
+    "equipment": "Одна гантель, устойчивая опора",
+    "weight_type": "dumbbell",
+    "instructions": "Свободной рукой держись за опору; положение гантели относительно рабочей ноги сохраняй одинаковым",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "e3302df0-33d1-439c-9fa5-91fc366836d4",
+    "name": "Тяга верхнего блока к груди",
+    "per_side": false,
+    "equipment": "Верхний блок, рукоять",
+    "weight_type": "machine",
+    "instructions": "Тяни рукоять к верхней части груди, направляя локти вниз",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "bf7ec8bd-89da-4c57-9d5d-da704f578114",
+    "name": "Тяга гантелей с опорой грудью на наклонную скамью",
+    "per_side": false,
+    "equipment": "Две гантели, наклонная скамья",
+    "weight_type": "dumbbell",
+    "instructions": "Грудь остаётся на скамье. Записывай вес одной гантели.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "3a96309b-27ec-4b57-820d-e08696cf0edd",
+    "name": "Тяга гантели одной рукой с опорой",
+    "per_side": true,
+    "equipment": "Гантель, скамья или другая опора",
+    "weight_type": "dumbbell",
+    "instructions": "Тяни локоть назад к тазу, избегая разворота корпуса",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "326216b1-4e3c-495e-8ae2-7cccc592566f",
+    "name": "Тяга горизонтального блока",
+    "per_side": false,
+    "equipment": "Нижний блок, рукоять",
+    "weight_type": "machine",
+    "instructions": "Тяни рукоять к корпусу, затем плавно выпрямляй руки.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "eccc3ae0-ace8-468f-ba7f-ca8fa93b9b83",
+    "name": "Тяга каната к лицу — face pull",
+    "per_side": false,
+    "equipment": "Блок, канатная рукоять",
+    "weight_type": "machine",
+    "instructions": "Тяни канат к лицу, разводя его концы и локти.",
+    "measurement_type": "reps"
+  },
+  {
+    "id": "e6223276-c422-4227-96b2-79b48258b988",
+    "name": "Ягодичный мостик с гантелью",
+    "per_side": false,
+    "equipment": "Коврик, гантель, мягкая прокладка",
+    "weight_type": "total",
+    "instructions": "Плечи остаются на полу; придерживай гантель руками",
+    "measurement_type": "reps"
+  }
+]

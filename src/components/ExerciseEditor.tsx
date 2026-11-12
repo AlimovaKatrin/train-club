@@ -14,6 +14,7 @@ import {
   type SetResult,
 } from '@/lib/domain';
 import { NumberField } from './Fields';
+import { ExerciseTechnique } from './ExerciseTechnique';
 import css from './Diary.module.css';
 export function ExerciseEditor({
   draft,
@@ -163,6 +164,8 @@ export function ExerciseEditor({
         </p>
         <details className={css.exerciseDetails} key={option.id}>
           <summary>Техника и прошлый результат</summary>
+          <ExerciseTechnique key={option.id} exerciseId={option.exerciseId} name={option.name} />
+          {option.instructions && <p className={css.small}>{option.instructions}</p>}
           <p className={css.small}>{option.equipment}</p>
           <label className={css.field}>
             <span>Модель тренажёра или заметка об оборудовании</span>
@@ -185,7 +188,6 @@ export function ExerciseEditor({
               }
             />
           </label>
-          {option.instructions && <p className={css.small}>{option.instructions}</p>}
           <div className={css.previous}>
             В прошлый раз:{' '}
             {option.previous ? (
