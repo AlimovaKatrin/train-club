@@ -30,6 +30,14 @@
       "original": "docs/exercise-images/originals/goblet-squat.png"
     },
     {
+      "slug": "pallof-press",
+      "id": "e83b14a1-2241-42a9-b572-48d19a748d05",
+      "name": "Жим Палоффа на блоке",
+      "prompt": "Use case: scientific-educational. Asset: mobile Train Club exercise technique illustration. Draw ONE exercise in two equally sized side-by-side panels, same adult woman and identical equipment in each. Anatomically accurate instructional illustration, neutral athletic proportions, stylish soft-masc adult lesbian woman with short textured dark undercut, boxy sage-green T-shirt, dark forest-green mid-thigh sports shorts, neutral low-top training shoes, small silver ear stud, blackwork botanical and geometric tattoos on both arms. Use the provided reference ONLY for the same character identity, haircut, clothing, tattoos and illustration style; completely replace its goblet-squat poses and dumbbell with the specified exercise below. Off-white #fffefa background, fine graphite outlines, muted #456752 accents, restrained soft shading. Wide 3:2 layout, generous margins, full body and all necessary apparatus visible. No text, numbers, logos, watermark, distracting decoration or exaggerated arrows. Exactly two arms and two legs per figure; plausible joints, continuous equipment, properly connected cables. Phases must represent the same movement and camera angle. Exercise: Жим Палоффа на блоке. Standing cable Pallof press. Woman stands SIDEWAYS to cable machine, pulley at chest height. Feet shoulder-width, soft knees, pelvis and chest facing forward without twisting. Both hands hold ONE shared handle. Left panel: hands at sternum. Right panel: both arms extend straight forward from chest; torso and hips remain facing exactly the same way, resisting rotation. Cable pulls laterally from handle toward pulley beside woman, not from in front of her. Same side toward machine in both panels. Front three-quarter view clearly shows lateral cable direction and both arms. No overhead movement, no torso turn, no extra handle.",
+      "status": "not-generated",
+      "path": null
+    },
+    {
       "slug": "seated-dumbbell-press",
       "id": "2a6ab4ec-9973-444a-8ffd-cf3c5dd65b41",
       "name": "Жим гантелей вверх сидя",
@@ -112,6 +120,14 @@
       "status": "ready",
       "path": "public/exercises/lateral-raise.webp",
       "original": "docs/exercise-images/originals/lateral-raise.png"
+    },
+    {
+      "slug": "cable-triceps-pushdown",
+      "id": "eee3d020-52fd-4a39-867b-bd7a600288dd",
+      "name": "Разгибание рук на верхнем блоке",
+      "prompt": "Use case: scientific-educational. Asset: mobile Train Club exercise technique illustration. Draw ONE exercise in two equally sized side-by-side panels, same adult woman and identical equipment in each. Anatomically accurate instructional illustration, neutral athletic proportions, stylish soft-masc adult lesbian woman with short textured dark undercut, boxy sage-green T-shirt, dark forest-green mid-thigh sports shorts, neutral low-top training shoes, small silver ear stud, blackwork botanical and geometric tattoos on both arms. Use the provided reference ONLY for the same character identity, haircut, clothing, tattoos and illustration style; completely replace its goblet-squat poses and dumbbell with the specified exercise below. Off-white #fffefa background, fine graphite outlines, muted #456752 accents, restrained soft shading. Wide 3:2 layout, generous margins, full body and all necessary apparatus visible. No text, numbers, logos, watermark, distracting decoration or exaggerated arrows. Exactly two arms and two legs per figure; plausible joints, continuous equipment, properly connected cables. Phases must represent the same movement and camera angle. Exercise: Разгибание рук на верхнем блоке. Standing bilateral cable triceps pushdown on HIGH pulley using one two-ended rope. Woman faces cable machine, feet stable, torso near upright. Upper arms remain beside ribs in both panels. Left: elbows bent about 90 degrees, hands in front of abdomen, one rope end each hand. Right: extend elbows to bring hands beside hips, wrists neutral; shoulders do not swing. Continuous taut cable runs from high pulley above to center connector of forked rope. Same rope and camera angle in both panels. Show elbow extension, not a biceps curl, no overhead triceps variation, no extra arms.",
+      "status": "not-generated",
+      "path": null
     },
     {
       "slug": "dumbbell-romanian-deadlift",
@@ -226,5 +242,6 @@
       "status": "not-generated",
       "path": null
     }
-  ]
+  ],
+  "catalogVerifiedAt": "2026-11-12"
 }
