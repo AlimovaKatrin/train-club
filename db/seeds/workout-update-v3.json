@@ -1,0 +1,374 @@
+{
+  "name": "Силовые · 16 тренировок",
+  "version": 3,
+  "sourceVersion": 2,
+  "workingSets": 2,
+  "notes": "Все указанные подходы — рабочие, разминка отдельно. Вес подбирай примерно с 3 повторениями в запасе. Отдых после жимов, приседаний и основных тяг — около 2 минут, после остальных упражнений — 60–90 секунд. В односторонних упражнениях сначала выполни обе стороны, затем отдыхай.",
+  "exercises": {
+    "triceps": {
+      "name": "Разгибание рук на верхнем блоке",
+      "equipment": "Верхний блок, канат или рукоять",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Выпрямляй локти, удерживая плечи рядом с корпусом. Выполняй обеими руками одновременно. Записывай выбранный вес блока в килограммах.",
+      "rest": "60–90 секунд"
+    },
+    "pallof": {
+      "name": "Жим Палоффа на блоке",
+      "equipment": "Блок, рукоять",
+      "weightType": "machine",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Стоя боком к блоку, выпрямляй руки перед собой и сопротивляйся развороту. Выполни указанное число повторений на каждую сторону; один подход включает обе стороны.",
+      "rest": "60–90 секунд"
+    },
+    "face_pull": {
+      "name": "Тяга каната к лицу — face pull",
+      "equipment": "Блок, канатная рукоять",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Тяни канат к лицу, разводя его концы и локти.",
+      "rest": "60–90 секунд"
+    }
+  },
+  "workouts": [
+    {
+      "position": 3,
+      "name": "Тренировка 3 — жим штанги и гакк",
+      "exercises": [
+        {
+          "exercise": "barbell_bench",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "hack",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "cable_row",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "seated_curl",
+          "reps": [
+            12,
+            15
+          ]
+        },
+        {
+          "exercise": "db_curl",
+          "reps": [
+            10,
+            15
+          ]
+        },
+        {
+          "exercise": "dead_bug",
+          "reps": [
+            6,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "position": 4,
+      "name": "Тренировка 4 — гантели, ягодицы и трицепс",
+      "exercises": [
+        {
+          "exercise": "leg_press",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "db_bench",
+          "reps": [
+            8,
+            12
+          ]
+        },
+        {
+          "exercise": "chest_row",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "bridge",
+          "reps": [
+            12,
+            15
+          ]
+        },
+        {
+          "exercise": "triceps",
+          "reps": [
+            10,
+            15
+          ]
+        },
+        {
+          "exercise": "lateral",
+          "reps": [
+            12,
+            15
+          ]
+        }
+      ]
+    },
+    {
+      "position": 5,
+      "name": "Тренировка 5 — жим штанги и задняя поверхность бедра",
+      "exercises": [
+        {
+          "exercise": "barbell_bench",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "goblet",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "rdl",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "lat",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "cable_curl",
+          "reps": [
+            10,
+            15
+          ]
+        },
+        {
+          "exercise": "side_plank",
+          "seconds": [
+            20,
+            30
+          ]
+        }
+      ]
+    },
+    {
+      "position": 6,
+      "name": "Тренировка 6 — гакк, плечи и корпус",
+      "exercises": [
+        {
+          "exercise": "hack",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "shoulder_press",
+          "reps": [
+            8,
+            12
+          ]
+        },
+        {
+          "exercise": "row",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "seated_curl",
+          "reps": [
+            12,
+            15
+          ]
+        },
+        {
+          "exercise": "pallof",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "calf",
+          "reps": [
+            15,
+            20
+          ]
+        }
+      ]
+    },
+    {
+      "position": 7,
+      "name": "Тренировка 7 — жим штанги, спина и ягодицы",
+      "exercises": [
+        {
+          "exercise": "barbell_bench",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "leg_press",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "cable_row",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "bridge",
+          "reps": [
+            12,
+            15
+          ]
+        },
+        {
+          "exercise": "hammer",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "face_pull",
+          "reps": [
+            12,
+            15
+          ]
+        }
+      ]
+    },
+    {
+      "position": 8,
+      "name": "Тренировка 8 — сплит-присед и наклонный жим",
+      "exercises": [
+        {
+          "exercise": "split",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "incline_bench",
+          "reps": [
+            8,
+            12
+          ]
+        },
+        {
+          "exercise": "lat",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "seated_curl",
+          "reps": [
+            12,
+            15
+          ]
+        },
+        {
+          "exercise": "calf",
+          "reps": [
+            15,
+            20
+          ]
+        },
+        {
+          "exercise": "dead_bug",
+          "reps": [
+            6,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "position": 9,
+      "name": "Тренировка 9 — жим штанги, гакк и румынская тяга",
+      "exercises": [
+        {
+          "exercise": "barbell_bench",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "hack",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "rdl",
+          "reps": [
+            8,
+            10
+          ]
+        },
+        {
+          "exercise": "chest_row",
+          "reps": [
+            10,
+            12
+          ]
+        },
+        {
+          "exercise": "db_curl",
+          "reps": [
+            10,
+            15
+          ]
+        },
+        {
+          "exercise": "side_plank",
+          "seconds": [
+            20,
+            30
+          ]
+        }
+      ]
+    }
+  ]
+}
