@@ -42,7 +42,7 @@ describe.skipIf(!url)('second cycle and version transition', () => {
       result[t] = (await admin.query(`SELECT * FROM ${t} ORDER BY id`)).rows;
     return result;
   }
-  async function completed() {
+  async function completedGymSession() {
     const workout = (await bootstrap()).workout!;
     const { input } = newDraft('gym', '2026-11-11', workout);
     return {
@@ -50,12 +50,12 @@ describe.skipIf(!url)('second cycle and version transition', () => {
       wellbeing: 3,
       exertion: 5,
       main: 45,
-      exercises: input.exercises.map((e) => {
-        const option = workout.options.find((o) => o.id === e.optionId)!;
+      exercises: input.exercises.map((exercise) => {
+        const option = workout.options.find((option) => option.id === exercise.optionId)!;
         return {
-          ...e,
-          sets: e.sets.map((s) => ({
-            ...s,
+          ...exercise,
+          sets: exercise.sets.map((set) => ({
+            ...set,
             done: true,
             reps: option.measurement === 'reps' ? 12 : null,
             seconds: option.measurement === 'time' ? 25 : null,
@@ -66,8 +66,8 @@ describe.skipIf(!url)('second cycle and version transition', () => {
     };
   }
   it('only previews in check mode, copies 1–8 exactly, preserves historical records and rejects old drafts', async () => {
-    const saved = (await saveSession(await completed()))!;
-    const stale = await completed();
+    const saved = (await saveSession(await completedGymSession()))!;
+    const stale = await completedGymSession();
     const source = (await bootstrap()).workout!;
     const sourceTemplates = (
       await admin.query('SELECT id FROM workout_templates WHERE program_id=$1 ORDER BY position', [
@@ -238,10 +238,10 @@ describe.skipIf(!url)('second cycle and version transition', () => {
   it('advances 8→9 and 16→9 and keeps time ranges in historical snapshots and corrections', async () => {
     await run(true);
     await admin.query('UPDATE programs SET next_position=8 WHERE is_active');
-    await saveSession(await completed());
+    await saveSession(await completedGymSession());
     expect((await bootstrap()).workout!.position).toBe(9);
     await admin.query('UPDATE programs SET next_position=11 WHERE is_active');
-    const saved = (await saveSession(await completed()))!;
+    const saved = (await saveSession(await completedGymSession()))!;
     const side = saved.workout!.options.find((o) => o.name === 'Боковая планка с колен')!;
     expect(side.perSide).toBe(true);
     expect(side.weightType).toBe('none');
@@ -253,7 +253,7 @@ describe.skipIf(!url)('second cycle and version transition', () => {
         .workout!.options.find((o) => o.exerciseId === side.exerciseId)!.plan,
     ).toEqual(side.plan);
     await admin.query('UPDATE programs SET next_position=16 WHERE is_active');
-    await saveSession(await completed());
+    await saveSession(await completedGymSession());
     expect((await bootstrap()).workout!.position).toBe(9);
     await clearHistory({ connectionString: url!, apply: true });
     expect((await bootstrap()).workout).toMatchObject({
@@ -264,7 +264,7 @@ describe.skipIf(!url)('second cycle and version transition', () => {
   });
   it('starts at 9 when the old queue has just wrapped after workout 8', async () => {
     await admin.query('UPDATE programs SET next_position=8 WHERE is_active');
-    await saveSession(await completed());
+    await saveSession(await completedGymSession());
     expect((await bootstrap()).workout!.position).toBe(1);
     expect(await run(true)).toMatchObject({ nextPosition: 9 });
   });

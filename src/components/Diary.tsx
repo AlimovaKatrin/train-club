@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useRef, useState } from 'react';
 import {
   activityNames,
@@ -41,8 +42,8 @@ export function Diary() {
     try {
       setData(await loadDiary());
       setLoadError('');
-    } catch (e) {
-      setLoadError((e as Error).message);
+    } catch (error) {
+      setLoadError((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -64,7 +65,10 @@ export function Diary() {
     latestId.current = next.input.id;
     setLocalStatus('Сохраняю на устройстве…');
     const version = ++writeVersion.current;
-    setSavedDrafts((rows) => [next, ...rows.filter((d) => d.input.id !== next.input.id)]);
+    setSavedDrafts((rows) => [
+      next,
+      ...rows.filter((savedDraft) => savedDraft.input.id !== next.input.id),
+    ]);
     // Enqueue at the input event, not on page close; preserve ordering through submit and delete.
     writes.current = writes.current
       .catch(() => {})
@@ -95,29 +99,27 @@ export function Diary() {
   };
   const advance = () => {
     if (!draft) return;
-    const s = draft.input;
+    const session = draft.input;
     if (draft.stage === 'prepare') {
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(s.date) ||
-        s.wellbeing < 0 ||
-        s.wellbeing > 5 ||
-        (s.sleep !== null && (!Number.isFinite(s.sleep) || s.sleep < 0 || s.sleep > 24))
-      ) {
+      const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(session.date);
+      const wellbeingIsOutOfRange = session.wellbeing < 0 || session.wellbeing > 5;
+      const sleepIsValid =
+        session.sleep === null ||
+        (Number.isFinite(session.sleep) && session.sleep >= 0 && session.sleep <= 24);
+      if (!dateIsValid || wellbeingIsOutOfRange || !sleepIsValid) {
         setError('Укажи дату, самочувствие и сон от 0 до 24 часов.');
         return;
       }
-      change({ ...draft, stage: s.activity === 'gym' ? 'workout' : 'finish' });
+      change({ ...draft, stage: session.activity === 'gym' ? 'workout' : 'finish' });
     } else if (draft.stage === 'workout') {
       try {
-        s.exercises.forEach((e) =>
-          validateSets(
-            e.sets,
-            draft.workout!.options.find((o) => o.id === e.optionId)!,
-          ),
-        );
+        for (const exercise of session.exercises) {
+          const option = draft.workout!.options.find((option) => option.id === exercise.optionId)!;
+          validateSets(exercise.sets, option);
+        }
         change({ ...draft, stage: 'finish' });
-      } catch (e) {
-        setError((e as Error).message);
+      } catch (error) {
+        setError((error as Error).message);
       }
     }
   };
@@ -126,7 +128,7 @@ export function Diary() {
     const checked = sessionSchema.safeParse(draft.input);
     if (!checked.success) {
       setError(
-        checked.error.issues.find((i) => i.code === 'custom')?.message ??
+        checked.error.issues.find((issue) => issue.code === 'custom')?.message ??
           'Проверь дату, сон, пульс и тяжесть занятия.',
       );
       return;
@@ -139,7 +141,9 @@ export function Diary() {
       latestId.current = null;
       try {
         await removeDraft(draft.input.id);
-        setSavedDrafts((rows) => rows.filter((d) => d.input.id !== draft.input.id));
+        setSavedDrafts((rows) =>
+          rows.filter((savedDraft) => savedDraft.input.id !== draft.input.id),
+        );
         setLocalStatus('');
       } catch {
         setLocalStatus(
@@ -150,11 +154,11 @@ export function Diary() {
       setDraft(null);
       setView('success');
       await refresh();
-    } catch (e) {
+    } catch (error) {
       setError(
-        e instanceof TypeError
+        error instanceof TypeError
           ? 'Нет связи с сервером. Черновик остаётся на устройстве; повтори отправку после восстановления сети.'
-          : (e as Error).message,
+          : (error as Error).message,
       );
     } finally {
       setBusy(false);
@@ -162,7 +166,7 @@ export function Diary() {
   };
   const edit = () => {
     if (!record) return;
-    const existing = savedDrafts.find((d) => d.input.id === record.input.id);
+    const existing = savedDrafts.find((savedDraft) => savedDraft.input.id === record.input.id);
     change(
       existing ?? {
         version: 1,
@@ -224,7 +228,7 @@ export function Diary() {
           <>
             <label className={css.field}>
               <span className={css.small}>Дата занятия</span>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </label>
             <h2>Чем займёмся сегодня?</h2>
             <div className={css.kinds} role="group" aria-label="Вид занятия">
@@ -244,22 +248,22 @@ export function Diary() {
             {savedDrafts.length > 0 && (
               <section className={css.section}>
                 <h2>Незавершённые занятия</h2>
-                {savedDrafts.map((d) => (
+                {savedDrafts.map((savedDraft) => (
                   <button
                     className={css.row}
-                    key={d.input.id}
+                    key={savedDraft.input.id}
                     onClick={() => {
-                      setDraft(d);
-                      latestId.current = d.input.id;
+                      setDraft(savedDraft);
+                      latestId.current = savedDraft.input.id;
                       setLocalStatus('Черновик восстановлен с устройства');
                       navigate('session');
                     }}
                   >
                     <span>
-                      Продолжить: {activityNames[d.input.activity]}
+                      Продолжить: {activityNames[savedDraft.input.activity]}
                       <small>
-                        {dateLabel(d.input.date)}
-                        {d.editingRevision !== null ? ' · исправление истории' : ''}
+                        {dateLabel(savedDraft.input.date)}
+                        {savedDraft.editingRevision !== null ? ' · исправление истории' : ''}
                       </small>
                     </span>
                     <span>›</span>
@@ -398,7 +402,6 @@ export function Diary() {
     </div>
   );
 }
-
 function sessionActionLabel(draft: Draft, busy: boolean) {
   if (busy) return 'Сохраняю…';
   if (draft.stage === 'prepare') return 'Начать занятие →';

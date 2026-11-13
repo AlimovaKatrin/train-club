@@ -48,24 +48,24 @@ describe.skipIf(!url)('update workouts 3–9 without losing production history',
           a.exerciseId.localeCompare(b.exerciseId),
       ),
   });
-  async function completed() {
-    const w = (await bootstrap()).workout!;
-    const { input } = newDraft('gym', '2026-11-12', w);
+  async function completedGymSession() {
+    const workout = (await bootstrap()).workout!;
+    const { input } = newDraft('gym', '2026-11-12', workout);
     return {
       ...input,
       wellbeing: 3,
       exertion: 5,
       main: 45,
-      exercises: input.exercises.map((e) => {
-        const o = w.options.find((o) => o.id === e.optionId)!;
+      exercises: input.exercises.map((exercise) => {
+        const option = workout.options.find((option) => option.id === exercise.optionId)!;
         return {
-          ...e,
-          sets: e.sets.map((s) => ({
-            ...s,
+          ...exercise,
+          sets: exercise.sets.map((set) => ({
+            ...set,
             done: true,
-            reps: o.measurement === 'reps' ? 12 : null,
-            seconds: o.measurement === 'time' ? 25 : null,
-            weight: o.weightType === 'none' ? null : 10,
+            reps: option.measurement === 'reps' ? 12 : null,
+            seconds: option.measurement === 'time' ? 25 : null,
+            weight: option.weightType === 'none' ? null : 10,
           })),
         };
       }),
@@ -82,15 +82,15 @@ describe.skipIf(!url)('update workouts 3–9 without losing production history',
     await admin.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
     await seedProduction({ connectionString: url!, apply: true });
     await seedNextCycle({ connectionString: url!, apply: true });
-    await saveSession(await completed());
-    await saveSession(await completed());
+    await saveSession(await completedGymSession());
+    await saveSession(await completedGymSession());
   });
   afterAll(async () => {
     await admin?.end();
     await pool().end();
   });
   it('previews without writes, preserves both sessions and the current step, and is idempotent', async () => {
-    const stale = await completed();
+    const stale = await completedGymSession();
     const source = (await bootstrap()).workout!;
     const originals = await workoutList(source.programId);
     const before = await snapshot();
@@ -236,11 +236,11 @@ describe.skipIf(!url)('update workouts 3–9 without losing production history',
   });
   it('saves the new program and continues 16→9', async () => {
     await run(true);
-    const saved = (await saveSession(await completed()))!;
+    const saved = (await saveSession(await completedGymSession()))!;
     expect(saved.workout!.options).toHaveLength(6);
     expect((await bootstrap()).workout!.position).toBe(4);
     await admin.query('UPDATE programs SET next_position=16 WHERE is_active');
-    await saveSession(await completed());
+    await saveSession(await completedGymSession());
     expect((await bootstrap()).workout!.position).toBe(9);
   });
   it('rolls back new exercises and plans if publishing fails', async () => {

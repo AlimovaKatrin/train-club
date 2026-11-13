@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   blankSet,
@@ -73,24 +74,29 @@ export function ExerciseEditor({
       setIndex: 0,
       input: {
         ...draft.input,
-        exercises: draft.input.exercises.map((e, i) =>
-          i === draft.exerciseIndex ? { optionId: option.id, sets: optionSets(option) } : e,
+        exercises: draft.input.exercises.map((recordedExercise, index) =>
+          index === draft.exerciseIndex
+            ? { optionId: option.id, sets: optionSets(option) }
+            : recordedExercise,
         ),
       },
     });
     setReplacing(false);
   };
   const completedWorkingSets = draft.input.exercises.reduce(
-    (n, e) => n + workingProgress(e.sets),
+    (value, recordedExercise) => value + workingProgress(recordedExercise.sets),
     0,
   );
   const totalWorkingSets = draft.input.exercises.reduce(
-    (n, e) => n + e.sets.filter((s) => s.type === 'working').length,
+    (value, recordedExercise) =>
+      value + recordedExercise.sets.filter((result) => result.type === 'working').length,
     0,
   );
   const previousSet = exercise.sets[draft.setIndex - 1];
-  const allDone = draft.input.exercises.every((e) => e.sets.every((s) => s.done));
-  const exerciseDone = exercise.sets.every((s) => s.done);
+  const allDone = draft.input.exercises.every((recordedExercise) =>
+    recordedExercise.sets.every((result) => result.done),
+  );
+  const exerciseDone = exercise.sets.every((result) => result.done);
   const nextPending = () => {
     const next = nextPendingExercise(draft);
     if (next !== draft) change(next);
@@ -138,14 +144,14 @@ export function ExerciseEditor({
               value={exercise.equipmentNote ?? ''}
               maxLength={300}
               placeholder="Необязательно, например номер тренажёра"
-              onChange={(e) =>
+              onChange={(event) =>
                 change({
                   ...draft,
                   input: {
                     ...draft.input,
-                    exercises: draft.input.exercises.map((item, i) =>
-                      i === draft.exerciseIndex
-                        ? { ...item, equipmentNote: e.target.value || null }
+                    exercises: draft.input.exercises.map((item, index) =>
+                      index === draft.exerciseIndex
+                        ? { ...item, equipmentNote: event.target.value || null }
                         : item,
                     ),
                   },
@@ -178,22 +184,23 @@ export function ExerciseEditor({
           )}
         </details>
         <div className={css.setTabs} role="group" aria-label="Подходы">
-          {exercise.sets.map((s, i) => (
+          {exercise.sets.map((result, index) => (
             <button
-              key={`${s.type}-${s.position}`}
-              className={`${i === draft.setIndex ? css.activeTab : ''} ${s.type === 'warmup' ? css.warmup : ''}`}
-              aria-pressed={i === draft.setIndex}
-              onClick={() => change({ ...draft, setIndex: i })}
+              key={`${result.type}-${result.position}`}
+              className={`${index === draft.setIndex ? css.activeTab : ''} ${result.type === 'warmup' ? css.warmup : ''}`}
+              aria-pressed={index === draft.setIndex}
+              onClick={() => change({ ...draft, setIndex: index })}
             >
-              {s.done ? '✓ ' : ''}
-              {s.type === 'warmup' ? 'Разминка' : s.position}
-              {s.type === 'working' && <small>рабочий</small>}
+              {result.done ? '✓ ' : ''}
+              {result.type === 'warmup' ? 'Разминка' : result.position}
+              {result.type === 'working' && <small>рабочий</small>}
             </button>
           ))}
         </div>
         {set.type === 'working' && (
           <p className={css.subtitle}>
-            План: {formatPlan(option.plan.find((p) => p.position === set.position)!)}
+            План:{' '}
+            {formatPlan(option.plan.find((plannedSet) => plannedSet.position === set.position)!)}
             {option.perSide ? ' на каждую сторону' : ''}
           </p>
         )}
@@ -210,8 +217,8 @@ export function ExerciseEditor({
             label={option.measurement === 'reps' ? 'Повторения' : 'Длительность, сек'}
             value={option.measurement === 'reps' ? set.reps : set.seconds}
             min={1}
-            onChange={(n) =>
-              updateSet(option.measurement === 'reps' ? { reps: n } : { seconds: n })
+            onChange={(value) =>
+              updateSet(option.measurement === 'reps' ? { reps: value } : { seconds: value })
             }
           />
         </div>
@@ -220,7 +227,7 @@ export function ExerciseEditor({
         )}
         {!editing &&
           draft.setIndex === 0 &&
-          !exercise.sets.some((s) => s.type === 'warmup' || s.done) && (
+          !exercise.sets.some((result) => result.type === 'warmup' || result.done) && (
             <button
               className={css.textButton}
               onClick={() => updateSets([blankSet(1, 'warmup'), ...exercise.sets], 0)}
@@ -233,7 +240,7 @@ export function ExerciseEditor({
             className={css.textButton}
             onClick={() =>
               updateSets(
-                exercise.sets.filter((s) => s.type !== 'warmup'),
+                exercise.sets.filter((result) => result.type !== 'warmup'),
                 0,
               )
             }
@@ -253,28 +260,31 @@ export function ExerciseEditor({
           <span aria-hidden="true">{listOpen ? '▴' : '▾'}</span>
         </button>
         <div id={listId} hidden={!listOpen}>
-          {draft.input.exercises.map((e, i) => {
-            const option = draft.workout!.options.find((option) => option.id === e.optionId)!;
-            const complete = e.sets.every((s) => s.done);
-            const current = i === draft.exerciseIndex;
+          {draft.input.exercises.map((recordedExercise, index) => {
+            const option = draft.workout!.options.find(
+              (option) => option.id === recordedExercise.optionId,
+            )!;
+            const complete = recordedExercise.sets.every((result) => result.done);
+            const current = index === draft.exerciseIndex;
             let exerciseStatus = 'Впереди';
             if (complete) exerciseStatus = 'Выполнено';
             else if (current) exerciseStatus = 'Сейчас';
             return (
               <button
-                key={e.optionId}
+                key={recordedExercise.optionId}
                 className={css.row}
-                aria-label={`Открыть упражнение ${i + 1}: ${option.name}${complete ? ' · выполнено' : ''}`}
+                aria-label={`Открыть упражнение ${index + 1}: ${option.name}${complete ? ' · выполнено' : ''}`}
                 aria-current={current ? 'step' : undefined}
                 onClick={() => {
                   setListOpen(false);
-                  change({ ...draft, exerciseIndex: i, setIndex: 0 });
+                  change({ ...draft, exerciseIndex: index, setIndex: 0 });
                 }}
               >
                 <span>
-                  {i + 1}. {option.name}
+                  {index + 1}. {option.name}
                   <small>
-                    {exerciseStatus} · {workingProgress(e.sets)} из {option.plan.length} рабочих
+                    {exerciseStatus} · {workingProgress(recordedExercise.sets)} из{' '}
+                    {option.plan.length} рабочих
                   </small>
                 </span>
                 <span aria-hidden="true">{complete ? '✓' : '›'}</span>

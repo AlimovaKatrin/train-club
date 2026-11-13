@@ -36,7 +36,7 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     await admin?.end();
     await pool().end();
   });
-  async function gym(): Promise<SessionInput> {
+  async function completedGymSession(): Promise<SessionInput> {
     const { workout } = await bootstrap();
     const { input } = newDraft('gym', '2026-11-08', workout);
     return {
@@ -44,22 +44,21 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
       wellbeing: 3,
       exertion: 5,
       main: 45,
-      exercises: input.exercises.map((e) => ({
-        ...e,
-        sets: e.sets.map((s) => ({
-          ...s,
+      exercises: input.exercises.map((exercise) => {
+        const option = workout!.options.find((option) => option.id === exercise.optionId)!;
+        const sets = exercise.sets.map((set) => ({
+          ...set,
           done: true,
           weight: null,
-          reps:
-            workout!.options.find((o) => o.id === e.optionId)!.measurement === 'reps' ? 12 : null,
-          seconds:
-            workout!.options.find((o) => o.id === e.optionId)!.measurement === 'time' ? 30 : null,
-        })),
-      })),
+          reps: option.measurement === 'reps' ? 12 : null,
+          seconds: option.measurement === 'time' ? 30 : null,
+        }));
+        return { ...exercise, sets };
+      }),
     };
   }
   it('stores warmup separately and idempotently advances once, including concurrent retries', async () => {
-    const input = await gym();
+    const input = await completedGymSession();
     input.exercises[0].sets.unshift({ ...blankSet(1, 'warmup'), done: true, reps: 8 });
     const results = await Promise.all([saveSession(input), saveSession(input)]);
     expect(results[0]!.input.id).toBe(results[1]!.input.id);
@@ -70,15 +69,18 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     await expect(saveSession({ ...input, notes: 'changed' })).rejects.toThrow('другими данными');
   });
   it('rejects two different workouts completing the same queue step', async () => {
-    const a = await gym(),
-      b = { ...a, id: crypto.randomUUID() };
-    const results = await Promise.allSettled([saveSession(a), saveSession(b)]);
+    const firstSession = await completedGymSession();
+    const competingSession = { ...firstSession, id: crypto.randomUUID() };
+    const results = await Promise.allSettled([
+      saveSession(firstSession),
+      saveSession(competingSession),
+    ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect((await bootstrap()).history).toHaveLength(1);
   });
   it('wraps eight to one', async () => {
     await admin.query('UPDATE programs SET next_position=8');
-    await saveSession(await gym());
+    await saveSession(await completedGymSession());
     expect((await bootstrap()).workout!.position).toBe(1);
   });
   it('boxing and pilates never advance gym queue, editing does not either', async () => {
@@ -148,7 +150,7 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
         );
       }
     }
-    const input = await gym();
+    const input = await completedGymSession();
     const lying = first.options.find((o) => o.name === 'Сгибание ног лёжа')!;
     input.exercises[3] = {
       optionId: lying.id,
@@ -167,7 +169,7 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     );
   });
   it('uses the replacement plan, exercise identity and its own previous results', async () => {
-    const input = await gym();
+    const input = await completedGymSession();
     const state = await bootstrap();
     const alt = state.workout!.options.find((o) => !o.primary)!;
     input.exercises[0] = {
@@ -184,7 +186,7 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     expect(next.options.find((o) => o.primary && o.position === 1)!.previous).toBeNull();
   });
   it('preserves snapshots after catalog updates and history edits', async () => {
-    const saved = (await saveSession(await gym()))!;
+    const saved = (await saveSession(await completedGymSession()))!;
     const name = saved.workout!.options[0].name;
     await admin.query("UPDATE exercises SET name='Renamed',weight_type='total'");
     await editSession({ ...saved.input, notes: 'Correction' }, saved.revision);
@@ -194,14 +196,14 @@ describe.skipIf(!url)('real PostgreSQL transactions', () => {
     expect((await bootstrap()).workout!.position).toBe(2);
   });
   it('rejects incomplete/foreign sets without leaving partial rows or changing queue', async () => {
-    const input = await gym();
+    const input = await completedGymSession();
     input.exercises[0].sets.pop();
     await expect(saveSession(input)).rejects.toThrow();
     expect((await bootstrap()).history).toHaveLength(0);
     expect((await bootstrap()).workout!.position).toBe(1);
   });
   it('guards published plans and rejects stale drafts after catalog changes', async () => {
-    const input = await gym();
+    const input = await completedGymSession();
     await expect(admin.query('UPDATE workout_planned_sets SET target_reps_min=1')).rejects.toThrow(
       'immutable',
     );

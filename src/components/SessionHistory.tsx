@@ -9,7 +9,6 @@ import {
 } from '@/lib/domain';
 import { dateLabel } from '@/lib/calendar';
 import css from './Diary.module.css';
-
 export function HistoryEntry({
   record,
   onOpen,
@@ -33,7 +32,6 @@ export function HistoryEntry({
     </button>
   );
 }
-
 export function SessionHistory({
   history,
   filter,
@@ -81,7 +79,6 @@ export function SessionHistory({
     </>
   );
 }
-
 export function SessionDetails({ record }: { record: SessionRecord }) {
   return (
     <>
@@ -117,19 +114,19 @@ export function SessionDetails({ record }: { record: SessionRecord }) {
           </div>
         ))}
       </div>
-      {record.input.exercises.map((e) => {
-        const o = record.workout!.options.find((o) => o.id === e.optionId)!;
+      {record.input.exercises.map((exercise) => {
+        const option = record.workout!.options.find((option) => option.id === exercise.optionId)!;
         return (
-          <section key={e.optionId} className={css.section}>
-            <h2>{o.name}</h2>
+          <section key={exercise.optionId} className={css.section}>
+            <h2>{option.name}</h2>
             <p className={css.small}>
-              {weightNames[o.weightType]}
-              {o.perSide ? ' · на каждую сторону' : ''}
+              {weightNames[option.weightType]}
+              {option.perSide ? ' · на каждую сторону' : ''}
             </p>
-            {e.sets.map((s) => (
-              <div key={`${s.type}-${s.position}`} className={css.row}>
-                <span>{s.type === 'warmup' ? 'Разминка' : `${s.position} · рабочий`}</span>
-                <strong>{formatSet(s)}</strong>
+            {exercise.sets.map((set) => (
+              <div key={`${set.type}-${set.position}`} className={css.row}>
+                <span>{set.type === 'warmup' ? 'Разминка' : `${set.position} · рабочий`}</span>
+                <strong>{formatSet(set)}</strong>
               </div>
             ))}
           </section>
@@ -144,7 +141,6 @@ export function SessionDetails({ record }: { record: SessionRecord }) {
     </>
   );
 }
-
 export function SessionSaved({
   record,
   nextWorkout,

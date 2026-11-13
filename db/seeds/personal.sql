@@ -4,7 +4,11 @@ BEGIN;
 LOCK TABLE programs, sessions IN SHARE ROW EXCLUSIVE MODE;
 DO $$
 DECLARE
-  pid uuid; tid uuid; oid uuid; i integer; item record;
+  pid uuid;
+  tid uuid;
+  oid uuid;
+  i integer;
+  item record;
   program_name text := 'Силовые A/B · 8 тренировок';
 BEGIN
   IF EXISTS (SELECT 1 FROM programs WHERE name=program_name AND version=1) THEN
@@ -17,9 +21,14 @@ BEGIN
   END IF;
 
   CREATE TEMP TABLE personal_exercises (
-    key text PRIMARY KEY, id uuid NOT NULL DEFAULT gen_random_uuid(),
-    name text, equipment text, weight_type text, per_side boolean, instructions text
-  ) ON COMMIT DROP;
+  key text PRIMARY KEY,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text,
+  equipment text,
+  weight_type text,
+  per_side boolean,
+  instructions text
+) ON COMMIT DROP;
   INSERT INTO personal_exercises(key,name,equipment,weight_type,per_side,instructions) VALUES
     ('goblet', 'Гоблет-присед', 'Одна гантель или гиря', 'total', false, 'Держи снаряд перед грудью и приседай в контролируемой амплитуде'),
     ('bench', 'Жим гантелей на горизонтальной скамье', 'Две гантели, горизонтальная скамья', 'dumbbell', false, 'Опусти гантели по сторонам груди и выжми вверх'),
@@ -34,7 +43,9 @@ BEGIN
     ('split_body', 'Сплит-присед с опорой без гантели', 'Устойчивая опора', 'none', true, 'Стопы стоят в разножке и не переставляются между повторами Держись рукой за опору.');
   INSERT INTO exercises(id,name,equipment,measurement_type,weight_type,per_side,instructions)
     SELECT id,name,equipment,'reps',weight_type,per_side,instructions FROM personal_exercises;
-  INSERT INTO programs(name,version) VALUES (program_name,1) RETURNING id INTO pid;
+  INSERT INTO programs(name,version)
+    VALUES (program_name,1)
+    RETURNING id INTO pid;
   FOR i IN 1..8 LOOP
     INSERT INTO workout_templates(program_id,position,name,notes)
       VALUES (pid,i,'Тренировка '||i||' · '||CASE WHEN i%2=1 THEN 'A' ELSE 'B' END,

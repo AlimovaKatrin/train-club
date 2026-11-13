@@ -18,13 +18,13 @@ export function NumberField({
 }) {
   const id = useId();
   const shown = value === null || !Number.isFinite(value) ? '' : value;
-  const move = (direction: number) =>
-    onChange(
-      Math.max(
-        min,
-        Math.min(max, Math.round(((Number(shown) || 0) + direction * step) * 100) / 100),
-      ),
-    );
+  const move = (direction: number) => {
+    const currentValue = Number(shown) || 0;
+    const steppedValue = currentValue + direction * step;
+    const roundedValue = Math.round(steppedValue * 100) / 100;
+    const boundedValue = Math.max(min, Math.min(max, roundedValue));
+    onChange(boundedValue);
+  };
   return (
     <div className={css.field}>
       <label htmlFor={id}>{label}</label>
@@ -60,14 +60,14 @@ export function ActivityIcon({ type }: { type: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {type === 'gym' ? (
-        <path d="M3 8v8m4-11v14m10-14v14m4-11v8M7 12h10" />
-      ) : type === 'pilates' ? (
+      {type === 'gym' && <path d="M3 8v8m4-11v14m10-14v14m4-11v8M7 12h10" />}
+      {type === 'pilates' && (
         <>
           <circle cx="15" cy="5" r="2" />
           <path d="m13 9-4 5 5 3m-5-3-5 4m8-8 5 3 4-3M3 22h18" />
         </>
-      ) : (
+      )}
+      {type !== 'gym' && type !== 'pilates' && (
         <path d="M7 17H5l-2-6V7l3-3h11l4 4v6l-3 3v5H7v-7m0 2h11M7 8v5" />
       )}
     </svg>

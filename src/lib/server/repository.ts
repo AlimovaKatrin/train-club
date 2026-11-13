@@ -42,20 +42,20 @@ function validatedOptions(input: SessionInput, workout: Workout | null) {
 async function insertExercises(db: Db, input: SessionInput, selected: ExerciseOption[]) {
   for (let index = 0; index < selected.length; index++) {
     const option = selected[index];
-    const { rows } = await db.query(
+    const { rows } = await db.query<{ id: string }>(
       `INSERT INTO session_exercises(session_id,
-  exercise_option_id,
-  exercise_id,
-  position,
-  name,
-  equipment,
-  measurement_type,
-  weight_type,
-  per_side,
-  instructions,
-  equipment_note)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id`,
+          exercise_option_id,
+          exercise_id,
+          position,
+          name,
+          equipment,
+          measurement_type,
+          weight_type,
+          per_side,
+          instructions,
+          equipment_note)
+        VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id`,
       [
         input.id,
         option.id,
@@ -77,17 +77,17 @@ RETURNING id`,
           : null;
       await db.query(
         `INSERT INTO session_sets(session_exercise_id,
-  set_type,
-  position,
-  target_reps_min,
-  target_reps_max,
-  target_duration_seconds,
-  weight_kg,
-  reps,
-  duration_seconds,
-  status,
-  target_duration_seconds_max)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            set_type,
+            position,
+            target_reps_min,
+            target_reps_max,
+            target_duration_seconds,
+            weight_kg,
+            reps,
+            duration_seconds,
+            status,
+            target_duration_seconds_max)
+          VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           rows[0].id,
           set.type,
@@ -111,9 +111,10 @@ export async function saveSession(raw: unknown) {
   return transaction(async (db) => {
     // Serialize identical IDs before checking the queue, including non-gym submissions.
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [input.id]);
-    const { rows: existing } = await db.query('SELECT request_hash FROM sessions WHERE id=$1', [
-      input.id,
-    ]);
+    const { rows: existing } = await db.query<{ request_hash: string }>(
+      'SELECT request_hash FROM sessions WHERE id=$1',
+      [input.id],
+    );
     if (existing.length) {
       if (existing[0].request_hash !== fingerprint)
         throw new AppError(
@@ -124,12 +125,17 @@ export async function saveSession(raw: unknown) {
     }
     let workout: Workout | null = null;
     if (input.activity === 'gym') {
-      const { rows: programs } = await db.query(
+      const { rows: programs } = await db.query<{
+        is_active: boolean;
+        status: string;
+        revision: number;
+        next_position: number;
+      }>(
         `SELECT p.*
-FROM programs p
-JOIN workout_templates t ON t.program_id=p.id
-WHERE t.id=$1
-FOR UPDATE OF p`,
+          FROM programs p
+          JOIN workout_templates t ON t.program_id=p.id
+          WHERE t.id=$1
+          FOR UPDATE OF p`,
         [input.templateId],
       );
       const program = programs[0];
@@ -149,24 +155,24 @@ FOR UPDATE OF p`,
     const selected = validatedOptions(input, workout);
     await db.query(
       `INSERT INTO sessions(id,
-  activity_type,
-  performed_on,
-  workout_template_id,
-  wellbeing,
-  sleep_hours,
-  warmup_minutes,
-  main_minutes,
-  cardio_minutes,
-  fixed_duration_minutes,
-  heart_rate_min,
-  heart_rate_max,
-  exertion,
-  notes,
-  request_hash,
-  provenance,
-  pulse_device,
-  workout_snapshot)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+          activity_type,
+          performed_on,
+          workout_template_id,
+          wellbeing,
+          sleep_hours,
+          warmup_minutes,
+          main_minutes,
+          cardio_minutes,
+          fixed_duration_minutes,
+          heart_rate_min,
+          heart_rate_max,
+          exertion,
+          notes,
+          request_hash,
+          provenance,
+          pulse_device,
+          workout_snapshot)
+        VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         input.id,
         input.activity,
@@ -205,15 +211,13 @@ VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $1
 }
 export async function editSession(raw: unknown, revision: number) {
   const input = sessionSchema.parse(raw);
-  const fingerprint = requestFingerprint({
-    input,
-    revision,
-  });
+  const fingerprint = requestFingerprint({ input, revision });
   return transaction(async (db) => {
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [input.id]);
-    const { rows } = await db.query('SELECT request_hash FROM sessions WHERE id=$1 FOR UPDATE', [
-      input.id,
-    ]);
+    const { rows } = await db.query<{ request_hash: string }>(
+      'SELECT request_hash FROM sessions WHERE id=$1 FOR UPDATE',
+      [input.id],
+    );
     if (!rows.length) throw new AppError(404, 'Занятие не найдено.');
     if (rows[0].request_hash === fingerprint) return loadSession(db, input.id);
     const existingSession = (await loadSession(db, input.id))!;
@@ -223,7 +227,10 @@ export async function editSession(raw: unknown, revision: number) {
       input.activity !== existingSession.input.activity ||
       input.templateId !== existingSession.input.templateId ||
       input.exercises.some(
-        (e) => !existingSession.input.exercises.some((option) => option.optionId === e.optionId),
+        (exercise) =>
+          !existingSession.input.exercises.some(
+            (savedExercise) => savedExercise.optionId === exercise.optionId,
+          ),
       )
     )
       throw new AppError(
@@ -233,23 +240,23 @@ export async function editSession(raw: unknown, revision: number) {
     const selected = validatedOptions(input, existingSession.workout);
     await db.query(
       `UPDATE sessions
-SET performed_on=$2,
-  wellbeing=$3,
-  sleep_hours=$4,
-  warmup_minutes=$5,
-  main_minutes=$6,
-  cardio_minutes=$7,
-  heart_rate_min=$8,
-  heart_rate_max=$9,
-  exertion=$10,
-  notes=$11,
-  revision=revision+1,
-  updated_at=now(),
-  request_hash=$12,
-  fixed_duration_minutes=$13,
-  provenance=$14,
-  pulse_device=$15
-WHERE id=$1`,
+        SET performed_on=$2,
+          wellbeing=$3,
+          sleep_hours=$4,
+          warmup_minutes=$5,
+          main_minutes=$6,
+          cardio_minutes=$7,
+          heart_rate_min=$8,
+          heart_rate_max=$9,
+          exertion=$10,
+          notes=$11,
+          revision=revision+1,
+          updated_at=now(),
+          request_hash=$12,
+          fixed_duration_minutes=$13,
+          provenance=$14,
+          pulse_device=$15
+        WHERE id=$1`,
       [
         input.id,
         input.date,
@@ -269,11 +276,10 @@ WHERE id=$1`,
       ],
     );
     await db.query(
-      `DELETE
-FROM session_sets
-WHERE session_exercise_id IN (SELECT id
-FROM session_exercises
-WHERE session_id=$1)`,
+      `DELETE FROM session_sets
+        WHERE session_exercise_id IN (
+          SELECT id FROM session_exercises WHERE session_id=$1
+        )`,
       [input.id],
     );
     await db.query('DELETE FROM session_exercises WHERE session_id=$1', [input.id]);

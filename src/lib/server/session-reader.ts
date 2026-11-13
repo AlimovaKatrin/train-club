@@ -30,10 +30,10 @@ WHERE ${templateId ? 't.id=$1' : "p.is_active AND p.status='published' AND t.pos
   if (!template) return null;
   const { rows } = await db.query<OptionRow>(
     `SELECT o.*, e.name, e.equipment, e.measurement_type, e.weight_type, e.per_side, e.instructions
-FROM workout_exercise_options o
-JOIN exercises e ON e.id=o.exercise_id
-WHERE o.workout_template_id=$1
-ORDER BY o.position, o.is_primary DESC, o.id`,
+      FROM workout_exercise_options o
+      JOIN exercises e ON e.id=o.exercise_id
+      WHERE o.workout_template_id=$1
+      ORDER BY o.position, o.is_primary DESC, o.id`,
     [template.id],
   );
   const options: ExerciseOption[] = [];
@@ -42,19 +42,24 @@ ORDER BY o.position, o.is_primary DESC, o.id`,
       'SELECT * FROM workout_planned_sets WHERE exercise_option_id=$1 ORDER BY position',
       [option.id],
     );
-    const { rows: previous } = await db.query<{
-      id: string;
-      date: string;
-    }>(
+    const { rows: previous } = await db.query<{ id: string; date: string }>(
       `SELECT se.id, s.performed_on::text AS date
-FROM session_exercises se
-JOIN sessions s ON s.id=se.session_id
-WHERE se.exercise_id=$1
-ORDER BY s.performed_on DESC, s.created_at DESC
-LIMIT 1`,
+        FROM session_exercises se
+        JOIN sessions s ON s.id=se.session_id
+        WHERE se.exercise_id=$1
+        ORDER BY s.performed_on DESC, s.created_at DESC
+        LIMIT 1`,
       [option.exercise_id],
     );
     const prior = previous[0];
+    let previousResult: ExerciseOption['previous'] = null;
+    if (prior) {
+      const { rows: previousSets } = await db.query<SetRow>(
+        "SELECT * FROM session_sets WHERE session_exercise_id=$1 AND set_type='working' ORDER BY position",
+        [prior.id],
+      );
+      previousResult = { date: prior.date, sets: previousSets.map(mapSet) };
+    }
     options.push({
       id: option.id,
       exerciseId: option.exercise_id,
@@ -67,17 +72,7 @@ LIMIT 1`,
       perSide: option.per_side,
       instructions: [option.instructions, option.notes].filter(Boolean).join(' '),
       plan: plans.map(mapPlan),
-      previous: prior
-        ? {
-            date: prior.date,
-            sets: (
-              await db.query<SetRow>(
-                "SELECT * FROM session_sets WHERE session_exercise_id=$1 AND set_type='working' ORDER BY position",
-                [prior.id],
-              )
-            ).rows.map(mapSet),
-          }
-        : null,
+      previous: previousResult,
     });
   }
   const token = fingerprint(options.map(({ previous: _previous, ...option }) => option));
@@ -112,9 +107,9 @@ export async function loadSession(db: Db, id: string): Promise<SessionRecord | n
   for (const recordedExercise of exerciseRows) {
     const { rows: sets } = await db.query<SetRow>(
       `SELECT *
-FROM session_sets
-WHERE session_exercise_id=$1
-ORDER BY CASE WHEN set_type='warmup' THEN 0 ELSE 1 END, position`,
+        FROM session_sets
+        WHERE session_exercise_id=$1
+        ORDER BY CASE WHEN set_type='warmup' THEN 0 ELSE 1 END, position`,
       [recordedExercise.id],
     );
     options.push({
@@ -141,14 +136,12 @@ ORDER BY CASE WHEN set_type='warmup' THEN 0 ELSE 1 END, position`,
   const { rows: templateRows } = session.workout_template_id
     ? await db.query<TemplateRow>(
         `SELECT t.*, p.version AS program_version, p.workout_count, p.repeat_from, p.name AS program_name
-FROM workout_templates t
-JOIN programs p ON p.id=t.program_id
-WHERE t.id=$1`,
+          FROM workout_templates t
+          JOIN programs p ON p.id=t.program_id
+          WHERE t.id=$1`,
         [session.workout_template_id],
       )
-    : {
-        rows: [],
-      };
+    : { rows: [] };
   const template = templateRows[0];
   const workout: Workout | null = template
     ? {
@@ -195,14 +188,11 @@ export async function bootstrap() {
   return transaction(async (db) => {
     await db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
     const workout = await loadWorkout(db);
-    const { rows } = await db.query<{
-      id: string;
-    }>('SELECT id FROM sessions ORDER BY performed_on DESC,created_at DESC LIMIT 100');
+    const { rows } = await db.query<{ id: string }>(
+      'SELECT id FROM sessions ORDER BY performed_on DESC,created_at DESC LIMIT 100',
+    );
     const history: SessionRecord[] = [];
     for (const row of rows) history.push((await loadSession(db, row.id))!);
-    return {
-      workout,
-      history,
-    };
+    return { workout, history };
   });
 }
