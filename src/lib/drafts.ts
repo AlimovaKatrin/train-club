@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import type { Draft } from './domain';
-const db = () =>
+const openDraftDatabase = () =>
   openDB('train-club', 1, {
     upgrade(database) {
       database.createObjectStore('drafts');
@@ -8,7 +8,7 @@ const db = () =>
   });
 // Each session has its own key, so tabs starting different workouts cannot overwrite each other.
 export async function saveDraft(draft: Draft) {
-  const database = await db();
+  const database = await openDraftDatabase();
   try {
     await database.put('drafts', draft, draft.input.id);
   } finally {
@@ -16,7 +16,7 @@ export async function saveDraft(draft: Draft) {
   }
 }
 export async function removeDraft(id: string) {
-  const database = await db();
+  const database = await openDraftDatabase();
   try {
     await database.delete('drafts', id);
   } finally {
@@ -24,7 +24,7 @@ export async function removeDraft(id: string) {
   }
 }
 export async function readDrafts(): Promise<Draft[]> {
-  const database = await db();
+  const database = await openDraftDatabase();
   try {
     const rows = await database.getAll('drafts');
     if (
@@ -34,27 +34,24 @@ export async function readDrafts(): Promise<Draft[]> {
       )
     )
       throw new Error('Unsupported draft');
-    // Drafts written before editable duration used an implicit hour.
-    return rows.map((draft: Draft) => ({
-      ...draft,
-      workout: draft.workout
-        ? {
-            ...draft.workout,
-            totalWorkouts: draft.workout.totalWorkouts ?? 8,
-            repeatFrom: draft.workout.repeatFrom ?? 1,
-          }
-        : null,
-      input: {
-        ...draft.input,
-        durationMinutes:
-          draft.input.durationMinutes === undefined
-            ? draft.input.activity === 'gym'
-              ? null
-              : 60
-            : draft.input.durationMinutes,
-      },
-    }));
+    return rows.map(restoreLegacyDraft);
   } finally {
     database.close();
   }
+}
+
+function restoreLegacyDraft(draft: Draft): Draft {
+  // Drafts written before editable duration used an implicit hour.
+  let durationMinutes = draft.input.durationMinutes;
+  if (durationMinutes === undefined) {
+    durationMinutes = draft.input.activity === 'gym' ? null : 60;
+  }
+  const workout = draft.workout
+    ? {
+        ...draft.workout,
+        totalWorkouts: draft.workout.totalWorkouts ?? 8,
+        repeatFrom: draft.workout.repeatFrom ?? 1,
+      }
+    : null;
+  return { ...draft, workout, input: { ...draft.input, durationMinutes } };
 }

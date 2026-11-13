@@ -4,6 +4,7 @@ import {
   duration,
   fieldSource,
   sourceNames,
+  trustedSource,
   provenanceFields,
   type ProvenanceField,
   type Draft,
@@ -12,31 +13,27 @@ import {
 import { NumberField } from './Fields';
 import css from './Diary.module.css';
 export function SessionForm({ draft, change }: { draft: Draft; change: (next: Draft) => void }) {
-  const s = draft.input;
+  const session = draft.input;
   const patch = (value: Partial<SessionInput>) => {
-    const provenance = { ...s.provenance };
+    const provenance = { ...session.provenance };
     for (const key of provenanceFields) {
       if (key in value) provenance[key] = value[key] === null ? 'unknown' : 'user_confirmed';
     }
-    change({ ...draft, input: { ...s, ...value, provenance } });
+    change({ ...draft, input: { ...session, ...value, provenance } });
   };
-  const confirm = (fields: ProvenanceField[]) =>
-    change({
-      ...draft,
-      input: {
-        ...s,
-        provenance: {
-          ...s.provenance,
-          ...Object.fromEntries(
-            fields.map((key) => [key, s[key] === null ? 'unknown' : 'user_confirmed']),
-          ),
-        },
-      },
-    });
+  const confirm = (fields: ProvenanceField[]) => {
+    const provenance = { ...session.provenance };
+    for (const field of fields) {
+      provenance[field] = session[field] === null ? 'unknown' : 'user_confirmed';
+    }
+    change({ ...draft, input: { ...session, provenance } });
+  };
   const source = (field: ProvenanceField, label: string) => (
     <div className={css.sourceHint}>
-      <span>{s[field] === null ? 'Не указано' : sourceNames[fieldSource(s, field)]}</span>
-      {s[field] !== null && !['user_confirmed', 'device'].includes(fieldSource(s, field)) && (
+      <span>
+        {session[field] === null ? 'Не указано' : sourceNames[fieldSource(session, field)]}
+      </span>
+      {session[field] !== null && !trustedSource(fieldSource(session, field)) && (
         <button type="button" className={css.textButton} onClick={() => confirm([field])}>
           Подтвердить {label}
         </button>
@@ -48,17 +45,21 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
       <>
         <h1>Перед занятием</h1>
         <p className={css.subtitle}>
-          {activityNames[s.activity]}
-          {s.activity === 'gym'
+          {activityNames[session.activity]}
+          {session.activity === 'gym'
             ? ` · тренировка ${draft.workout!.position} из ${draft.workout!.totalWorkouts}`
             : ''}
         </p>
-        {s.activity === 'gym' && draft.workout?.notes && (
+        {session.activity === 'gym' && draft.workout?.notes && (
           <p className={css.small}>{draft.workout.notes}</p>
         )}
         <label className={css.field}>
           <span>Дата занятия</span>
-          <input type="date" value={s.date} onChange={(e) => patch({ date: e.target.value })} />
+          <input
+            type="date"
+            value={session.date}
+            onChange={(e) => patch({ date: e.target.value })}
+          />
         </label>
         <div className={css.field}>
           <span>Самочувствие перед занятием · 0–5</span>
@@ -66,8 +67,8 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
             {Array.from({ length: 6 }, (_, i) => (
               <button
                 key={i}
-                className={s.wellbeing === i ? css.selected : ''}
-                aria-pressed={s.wellbeing === i}
+                className={session.wellbeing === i ? css.selected : ''}
+                aria-pressed={session.wellbeing === i}
                 onClick={() => patch({ wellbeing: i })}
               >
                 {i}
@@ -77,7 +78,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
         </div>
         <NumberField
           label="Сон, часов"
-          value={s.sleep}
+          value={session.sleep}
           step={0.5}
           max={24}
           onChange={(sleep) => patch({ sleep })}
@@ -92,11 +93,11 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
     <>
       <h1>Как всё прошло?</h1>
       <p className={css.subtitle}>
-        {activityNames[s.activity]} · {s.date}
+        {activityNames[session.activity]} · {session.date}
         <br />
         Запиши время и ощущения.
       </p>
-      {s.activity === 'gym' ? (
+      {session.activity === 'gym' ? (
         <section className={css.section}>
           <h2>Продолжительность, мин</h2>
           {(
@@ -114,7 +115,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
                 min={0}
                 max={1440}
                 step={1}
-                value={s[key] ?? ''}
+                value={session[key] ?? ''}
                 onChange={(e) =>
                   patch({ [key]: e.target.value === '' ? null : Number(e.target.value) })
                 }
@@ -122,7 +123,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
             </label>
           ))}
           {(['warmup', 'main', 'cardio'] as const).some(
-            (key) => !['user_confirmed', 'device'].includes(fieldSource(s, key)),
+            (key) => !trustedSource(fieldSource(session, key)),
           ) && (
             <button
               type="button"
@@ -133,37 +134,38 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
             </button>
           )}
           <p className={css.small}>
-            Разминка: {sourceNames[fieldSource(s, 'warmup')]}. Основная часть:{' '}
-            {sourceNames[fieldSource(s, 'main')]}. Кардио: {sourceNames[fieldSource(s, 'cardio')]}.
+            Разминка: {sourceNames[fieldSource(session, 'warmup')]}. Основная часть:{' '}
+            {sourceNames[fieldSource(session, 'main')]}. Кардио:{' '}
+            {sourceNames[fieldSource(session, 'cardio')]}.
           </p>
           <div className={css.total}>
             <span>Всего</span>
-            <strong>{duration(s)} мин</strong>
+            <strong>{duration(session)} мин</strong>
           </div>
         </section>
       ) : (
         <NumberField
           label="Продолжительность, мин"
-          value={s.durationMinutes}
+          value={session.durationMinutes}
           min={1}
           max={1440}
           onChange={(durationMinutes) => patch({ durationMinutes })}
         />
       )}
-      {s.activity !== 'gym' && source('durationMinutes', 'продолжительность')}
+      {session.activity !== 'gym' && source('durationMinutes', 'продолжительность')}
       <section className={css.section}>
         <h2>Измеренный пульс · необязательно</h2>
         <div className={css.two}>
           <NumberField
             label="Минимальный пульс"
-            value={s.pulseMin}
+            value={session.pulseMin}
             min={1}
             max={400}
             onChange={(n) => patch({ pulseMin: n })}
           />
           <NumberField
             label="Максимальный пульс"
-            value={s.pulseMax}
+            value={session.pulseMax}
             min={1}
             max={400}
             onChange={(n) => patch({ pulseMax: n })}
@@ -174,7 +176,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
         <label className={css.field}>
           <span>Источник измерения пульса</span>
           <input
-            value={s.pulseDevice ?? ''}
+            value={session.pulseDevice ?? ''}
             maxLength={200}
             placeholder="Например, часы Garmin или вручную"
             onChange={(e) => patch({ pulseDevice: e.target.value || null })}
@@ -188,7 +190,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
       <label className={css.field}>
         <span>Тяжесть тренировки · 0–10</span>
         <select
-          value={s.exertion < 0 ? '' : s.exertion}
+          value={session.exertion < 0 ? '' : session.exertion}
           onChange={(e) => patch({ exertion: e.target.value === '' ? -1 : Number(e.target.value) })}
         >
           <option value="">Выбери значение</option>
@@ -203,7 +205,7 @@ export function SessionForm({ draft, change }: { draft: Draft; change: (next: Dr
         <span>Заметка · необязательно</span>
         <textarea
           maxLength={5000}
-          value={s.notes}
+          value={session.notes}
           onChange={(e) => patch({ notes: e.target.value })}
           placeholder="Что хочется запомнить?"
         />

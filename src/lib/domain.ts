@@ -125,29 +125,45 @@ export const sessionSchema = z
       .max(100),
   })
   .strict()
-  .superRefine((s, ctx) => {
-    const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
-    if (s.pulseMin !== null && s.pulseMax !== null && s.pulseMin > s.pulseMax)
+  .superRefine((session, context) => {
+    const fail = (message: string) => context.addIssue({ code: 'custom', message });
+    const pulseIsReversed =
+      session.pulseMin !== null && session.pulseMax !== null && session.pulseMin > session.pulseMax;
+    if (pulseIsReversed) {
       fail('Минимальный пульс не может быть выше максимального.');
-    if (s.activity === 'gym') {
-      if (s.durationMinutes !== null) fail('Для зала время указывается по частям занятия.');
-      if (!s.templateId || s.programRevision === null || !s.planToken || !s.exercises.length)
+    }
+    if (session.activity === 'gym') {
+      if (session.durationMinutes !== null) {
+        fail('Для зала время указывается по частям занятия.');
+      }
+      const hasPlan =
+        session.templateId &&
+        session.programRevision !== null &&
+        session.planToken &&
+        session.exercises.length > 0;
+      if (!hasPlan) {
         fail('Не найден план тренировки.');
-      if (s.warmup === null || s.main === null || s.cardio === null || duration(s) <= 0)
+      }
+      const hasAllDurations =
+        session.warmup !== null && session.main !== null && session.cardio !== null;
+      if (!hasAllDurations || duration(session) <= 0) {
         fail('Укажи время зала: разминка, основная часть и кардио.');
-      if (s.exercises.some((e) => e.sets.some((set) => !set.done)))
+      }
+      if (session.exercises.some((exercise) => exercise.sets.some((set) => !set.done))) {
         fail('Запиши все рабочие подходы и добавленную разминку.');
-    } else if (
-      s.templateId !== null ||
-      s.programRevision !== null ||
-      s.planToken !== null ||
-      s.exercises.length ||
-      s.warmup !== null ||
-      s.main !== null ||
-      s.cardio !== null ||
-      s.durationMinutes === null
-    )
+      }
+      return;
+    }
+    const hasGymPlan =
+      session.templateId !== null ||
+      session.programRevision !== null ||
+      session.planToken !== null ||
+      session.exercises.length > 0;
+    const hasGymDuration =
+      session.warmup !== null || session.main !== null || session.cardio !== null;
+    if (hasGymPlan || hasGymDuration || session.durationMinutes === null) {
       fail('Для бокса и пилатеса укажи продолжительность в минутах, без упражнений.');
+    }
   });
 export type SessionInput = z.infer<typeof sessionSchema>;
 export type SessionRecord = { input: SessionInput; revision: number; workout: Workout | null };
@@ -162,11 +178,11 @@ export type Draft = {
 };
 export type Bootstrap = { workout: Workout | null; history: SessionRecord[] };
 export function duration(
-  s: Pick<SessionInput, 'activity' | 'warmup' | 'main' | 'cardio' | 'durationMinutes'>,
+  session: Pick<SessionInput, 'activity' | 'warmup' | 'main' | 'cardio' | 'durationMinutes'>,
 ) {
-  return s.activity === 'gym'
-    ? (s.warmup ?? 0) + (s.main ?? 0) + (s.cardio ?? 0)
-    : (s.durationMinutes ?? 0);
+  return session.activity === 'gym'
+    ? (session.warmup ?? 0) + (session.main ?? 0) + (session.cardio ?? 0)
+    : (session.durationMinutes ?? 0);
 }
 export function nextPosition(position: number, totalWorkouts = 8, repeatFrom = 1) {
   return position < totalWorkouts ? position + 1 : repeatFrom;
@@ -175,13 +191,15 @@ export function blankSet(position: number, type: SetResult['type'] = 'working'):
   return { position, type, weight: null, reps: null, seconds: null, done: false };
 }
 export function workingProgress(sets: SetResult[]) {
-  return sets.filter((s) => s.type === 'working' && s.done).length;
+  return sets.filter((set) => set.type === 'working' && set.done).length;
 }
 export function hasResults(sets: SetResult[]) {
-  return sets.some((s) => s.done || s.weight !== null || s.reps !== null || s.seconds !== null);
+  return sets.some(
+    (set) => set.done || set.weight !== null || set.reps !== null || set.seconds !== null,
+  );
 }
 export function optionSets(option: ExerciseOption) {
-  return option.plan.map((s) => blankSet(s.position));
+  return option.plan.map((set) => blankSet(set.position));
 }
 export function newDraft(activity: Activity, date: string, workout: Workout | null): Draft {
   const gym = activity === 'gym';
@@ -221,42 +239,54 @@ export function newDraft(activity: Activity, date: string, workout: Workout | nu
       planToken: gym ? workout!.token : null,
       exercises: gym
         ? workout!.options
-            .filter((o) => o.primary)
-            .map((o) => ({ optionId: o.id, sets: optionSets(o) }))
+            .filter((option) => option.primary)
+            .map((option) => ({ optionId: option.id, sets: optionSets(option) }))
         : [],
     },
   };
 }
 export function validateSets(sets: SetResult[], option: ExerciseOption) {
-  const working = sets.filter((s) => s.type === 'working');
-  const warmups = sets.filter((s) => s.type === 'warmup');
-  if (warmups.length > 1 || warmups.some((s) => s.position !== 1))
+  const workingSets = sets.filter((set) => set.type === 'working');
+  const warmupSets = sets.filter((set) => set.type === 'warmup');
+  if (warmupSets.length > 1 || warmupSets.some((set) => set.position !== 1)) {
     throw new Error('Допустим только один разминочный подход.');
-  if (
-    working.length !== option.plan.length ||
-    new Set(working.map((s) => s.position)).size !== working.length ||
-    option.plan.some((p) => !working.some((s) => s.position === p.position))
-  )
+  }
+  const positions = new Set(workingSets.map((set) => set.position));
+  const matchesPlan =
+    workingSets.length === option.plan.length &&
+    positions.size === workingSets.length &&
+    option.plan.every((plannedSet) => positions.has(plannedSet.position));
+  if (!matchesPlan) {
     throw new Error('Рабочие подходы не соответствуют плану.');
-  for (const s of sets) {
-    if (!s.done) throw new Error('Запиши все рабочие подходы и добавленную разминку.');
-    if (
-      option.measurement === 'reps'
-        ? s.reps === null || s.seconds !== null
-        : s.seconds === null || s.reps !== null
-    )
+  }
+  for (const set of sets) {
+    if (!set.done) {
+      throw new Error('Запиши все рабочие подходы и добавленную разминку.');
+    }
+    const hasRepetitionsOnly = set.reps !== null && set.seconds === null;
+    const hasSecondsOnly = set.seconds !== null && set.reps === null;
+    const matchesMeasurement = option.measurement === 'reps' ? hasRepetitionsOnly : hasSecondsOnly;
+    if (!matchesMeasurement) {
       throw new Error('Укажи результат в повторениях или секундах согласно упражнению.');
-    if (option.weightType === 'none' && s.weight !== null)
+    }
+    if (option.weightType === 'none' && set.weight !== null) {
       throw new Error('Для этого упражнения вес не используется.');
+    }
   }
 }
-export function formatSet(s: SetResult) {
-  return s.done
-    ? `${s.weight === null ? '' : `${s.weight} кг × `}${s.reps ?? s.seconds} ${s.reps === null ? 'сек' : 'повт.'}`
-    : 'Не записан';
+export function formatSet(set: SetResult) {
+  if (!set.done) return 'Не записан';
+  const weight = set.weight === null ? '' : `${set.weight} кг × `;
+  const result = set.reps ?? set.seconds;
+  const unit = set.reps === null ? 'сек' : 'повт.';
+  return `${weight}${result} ${unit}`;
 }
-export function formatPlan(p: PlannedSet) {
-  return p.seconds !== null
-    ? `${p.seconds}${p.secondsMax != null && p.secondsMax !== p.seconds ? `–${p.secondsMax}` : ''} сек`
-    : `${p.repsMin}${p.repsMax !== p.repsMin ? `–${p.repsMax}` : ''} повт.`;
+export function formatPlan(plan: PlannedSet) {
+  if (plan.seconds !== null) {
+    const upperBound =
+      plan.secondsMax != null && plan.secondsMax !== plan.seconds ? `–${plan.secondsMax}` : '';
+    return `${plan.seconds}${upperBound} сек`;
+  }
+  const upperBound = plan.repsMax !== plan.repsMin ? `–${plan.repsMax}` : '';
+  return `${plan.repsMin}${upperBound} повт.`;
 }
