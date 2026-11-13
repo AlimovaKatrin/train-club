@@ -119,41 +119,38 @@ export function calendarDate(now: Date, timeZone: string) {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(now);
-  const get = (key: string) => parts.find((p) => p.type === key)!.value;
+  const get = (key: string) => parts.find((plan) => plan.type === key)!.value;
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 export function exportPeriod(query: ExportQuery, now: Date) {
   const today = calendarDate(now, query.timeZone);
-  return query.range === 'all'
-    ? { from: null, to: null }
-    : query.range === 'custom'
-      ? { from: query.from!, to: query.to! }
-      : { from: shiftDate(today, -83), to: today };
+  if (query.range === 'all') return { from: null, to: null };
+  if (query.range === 'custom') return { from: query.from!, to: query.to! };
+  return { from: shiftDate(today, -83), to: today };
 }
-export function exportPlan(p: PlannedSet): ExportPlan {
+export function exportPlan(plan: PlannedSet): ExportPlan {
   return {
-    position: p.position,
+    position: plan.position,
     repetitions:
-      p.repsMin === null || p.repsMax === null ? null : { min: p.repsMin, max: p.repsMax },
-    seconds: p.seconds === null ? null : { min: p.seconds, max: p.secondsMax ?? p.seconds },
+      plan.repsMin === null || plan.repsMax === null
+        ? null
+        : { min: plan.repsMin, max: plan.repsMax },
+    seconds:
+      plan.seconds === null ? null : { min: plan.seconds, max: plan.secondsMax ?? plan.seconds },
   };
 }
-export function exportSet(s: SetResult, plan: ExportPlan | null): ExportSet {
+export function exportSet(set: SetResult, plan: ExportPlan | null): ExportSet {
+  return { ...set, plan, adherence: setAdherence(set, plan) };
+}
+function setAdherence(set: SetResult, plan: ExportPlan | null): ExportSet['adherence'] {
+  if (set.type !== 'working') return 'not_applicable';
+  if (!set.done) return 'not_done';
   const range = plan?.repetitions ?? plan?.seconds;
-  const actual = plan?.repetitions ? s.reps : s.seconds;
-  const adherence =
-    s.type !== 'working'
-      ? 'not_applicable'
-      : !s.done
-        ? 'not_done'
-        : !range || actual === null
-          ? 'unknown'
-          : actual < range.min
-            ? 'below'
-            : actual > range.max
-              ? 'above'
-              : 'within';
-  return { ...s, plan, adherence };
+  const actual = plan?.repetitions ? set.reps : set.seconds;
+  if (!range || actual === null) return 'unknown';
+  if (actual < range.min) return 'below';
+  if (actual > range.max) return 'above';
+  return 'within';
 }
 function weekStart(date: string) {
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -171,16 +168,7 @@ function weeklyActivity() {
     sessionsWithMissingDuration: 0,
   };
 }
-export function buildTrainingExport(sessions: ExportSession[], query: ExportQuery, now: Date) {
-  const requested = exportPeriod(query, now);
-  const sorted = [...sessions].sort(
-    (a, b) =>
-      a.date.localeCompare(b.date) ||
-      a.createdAt.localeCompare(b.createdAt) ||
-      a.id.localeCompare(b.id),
-  );
-  const from = requested.from ?? sorted[0]?.date ?? null;
-  const to = requested.to ?? sorted.at(-1)?.date ?? null;
+function summarizeWeeks(sorted: ExportSession[], from: string | null, to: string | null) {
   const weeks: {
     weekStart: string;
     weekEnd: string;
@@ -199,7 +187,26 @@ export function buildTrainingExport(sessions: ExportSession[], query: ExportQuer
         activities: { gym: weeklyActivity(), boxing: weeklyActivity(), pilates: weeklyActivity() },
       });
     }
-  const byWeek = new Map(weeks.map((w) => [w.weekStart, w]));
+  const byWeek = new Map(weeks.map((week) => [week.weekStart, week]));
+  for (const session of sorted) {
+    const weekly = byWeek.get(weekStart(session.date))!.activities[session.activity];
+    weekly.sessions++;
+    const minutes = session.duration.totalMinutes;
+    if (minutes.value === null) weekly.sessionsWithMissingDuration++;
+    else {
+      weekly.reportedMinutes += minutes.value;
+      weekly.minutesBySource[minutes.source] += minutes.value;
+      if (trustedSource(minutes.source)) weekly.confirmedMinutes += minutes.value;
+      else {
+        weekly.unverifiedMinutes += minutes.value;
+        weekly.sessionsWithUnverifiedDuration++;
+      }
+    }
+  }
+  return weeks;
+}
+
+function summarizeExercises(sorted: ExportSession[]) {
   const groups = new Map<
     string,
     {
@@ -223,45 +230,32 @@ export function buildTrainingExport(sessions: ExportSession[], query: ExportQuer
       }[];
     }
   >();
-  for (const s of sorted) {
-    const weekly = byWeek.get(weekStart(s.date))!.activities[s.activity];
-    weekly.sessions++;
-    const minutes = s.duration.totalMinutes;
-    if (minutes.value === null) weekly.sessionsWithMissingDuration++;
-    else {
-      weekly.reportedMinutes += minutes.value;
-      weekly.minutesBySource[minutes.source] += minutes.value;
-      if (trustedSource(minutes.source)) weekly.confirmedMinutes += minutes.value;
-      else {
-        weekly.unverifiedMinutes += minutes.value;
-        weekly.sessionsWithUnverifiedDuration++;
-      }
-    }
-    for (const e of s.exercises) {
+  for (const session of sorted) {
+    for (const exercise of session.exercises) {
       const key = JSON.stringify([
-        e.exerciseId,
-        e.equipment,
-        e.equipmentNote,
-        e.measurement,
-        e.weightType,
-        e.perSide,
+        exercise.exerciseId,
+        exercise.equipment,
+        exercise.equipmentNote,
+        exercise.measurement,
+        exercise.weightType,
+        exercise.perSide,
       ]);
       const group = groups.get(key) ?? {
         comparisonKey: key,
-        exerciseId: e.exerciseId,
-        name: e.name,
-        equipment: e.equipment,
-        equipmentNote: e.equipmentNote,
-        measurement: e.measurement,
-        weightType: e.weightType,
-        perSide: e.perSide,
+        exerciseId: exercise.exerciseId,
+        name: exercise.name,
+        equipment: exercise.equipment,
+        equipmentNote: exercise.equipmentNote,
+        measurement: exercise.measurement,
+        weightType: exercise.weightType,
+        perSide: exercise.perSide,
         completedWorkingSets: 0,
         completedWarmupSets: 0,
         adherence: { within: 0, below: 0, above: 0, unknown: 0, not_applicable: 0, not_done: 0 },
         latestResults: [],
       };
-      group.name = e.name;
-      for (const set of e.sets) {
+      group.name = exercise.name;
+      for (const set of exercise.sets) {
         if (set.done) {
           if (set.type === 'working') group.completedWorkingSets++;
           else group.completedWarmupSets++;
@@ -269,35 +263,58 @@ export function buildTrainingExport(sessions: ExportSession[], query: ExportQuer
         if (set.type === 'working') group.adherence[set.adherence]++;
       }
       group.latestResults.unshift({
-        exercisePosition: e.position,
-        sessionId: s.id,
-        date: s.date,
-        revision: s.revision,
-        sets: e.sets,
+        exercisePosition: exercise.position,
+        sessionId: session.id,
+        date: session.date,
+        revision: session.revision,
+        sets: exercise.sets,
       });
       group.latestResults = group.latestResults.slice(0, 3);
       groups.set(key, group);
     }
   }
+  return [...groups.values()];
+}
+
+function gymIntervals(sorted: ExportSession[]) {
+  const intervals: {
+    sessionId: string;
+    date: string;
+    previousGymSessionId: string | null;
+    previousGymDate: string | null;
+    calendarDaysBetween: number | null;
+    fullCalendarDaysWithoutGymBetween: number | null;
+  }[] = [];
   let previousGym: ExportSession | null = null;
-  const gymIntervals = sorted
-    .filter((s) => s.activity === 'gym')
-    .map((s) => {
-      const days = previousGym
-        ? (Date.parse(`${s.date}T00:00:00Z`) - Date.parse(`${previousGym.date}T00:00:00Z`)) /
-          86400000
-        : null;
-      const result = {
-        sessionId: s.id,
-        date: s.date,
-        previousGymSessionId: previousGym?.id ?? null,
-        previousGymDate: previousGym?.date ?? null,
-        calendarDaysBetween: days,
-        fullCalendarDaysWithoutGymBetween: days === null ? null : Math.max(0, days - 1),
-      };
-      previousGym = s;
-      return result;
+  for (const session of sorted) {
+    if (session.activity !== 'gym') continue;
+    const days = previousGym
+      ? (Date.parse(`${session.date}T00:00:00Z`) - Date.parse(`${previousGym.date}T00:00:00Z`)) /
+        86400000
+      : null;
+    intervals.push({
+      sessionId: session.id,
+      date: session.date,
+      previousGymSessionId: previousGym?.id ?? null,
+      previousGymDate: previousGym?.date ?? null,
+      calendarDaysBetween: days,
+      fullCalendarDaysWithoutGymBetween: days === null ? null : Math.max(0, days - 1),
     });
+    previousGym = session;
+  }
+  return intervals;
+}
+
+export function buildTrainingExport(sessions: ExportSession[], query: ExportQuery, now: Date) {
+  const requested = exportPeriod(query, now);
+  const sorted = [...sessions].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
+  const from = requested.from ?? sorted[0]?.date ?? null;
+  const to = requested.to ?? sorted.at(-1)?.date ?? null;
   return {
     schemaVersion: 1,
     generatedAt: now.toISOString(),
@@ -342,47 +359,60 @@ export function buildTrainingExport(sessions: ExportSession[], query: ExportQuer
     summary: {
       sessionCount: sorted.length,
       countsByActivity: Object.fromEntries(
-        activities.map((a) => [a, sorted.filter((s) => s.activity === a).length]),
+        activities.map((a) => [a, sorted.filter((session) => session.activity === a).length]),
       ),
-      weeks,
-      sessionDates: sorted.map((s) => ({ id: s.id, date: s.date, activity: s.activity })),
-      gymIntervals,
-      exercises: [...groups.values()],
-      recoveryTimeline: sorted.map((s) => ({
-        sessionId: s.id,
-        date: s.date,
-        activity: s.activity,
-        sleepHours: s.before.sleepHours,
-        wellbeing: s.before.wellbeing,
-        exertion: s.after.exertion,
+      weeks: summarizeWeeks(sorted, from, to),
+      sessionDates: sorted.map((session) => ({
+        id: session.id,
+        date: session.date,
+        activity: session.activity,
+      })),
+      gymIntervals: gymIntervals(sorted),
+      exercises: summarizeExercises(sorted),
+      recoveryTimeline: sorted.map((session) => ({
+        sessionId: session.id,
+        date: session.date,
+        activity: session.activity,
+        sleepHours: session.before.sleepHours,
+        wellbeing: session.before.wellbeing,
+        exertion: session.after.exertion,
       })),
       notes: sorted
         .filter(
-          (s) => s.after.note.trim() || s.exercises.some((e) => e.isReplacement || e.equipmentNote),
+          (session) =>
+            session.after.note.trim() ||
+            session.exercises.some((exercise) => exercise.isReplacement || exercise.equipmentNote),
         )
-        .map((s) => ({
-          sessionId: s.id,
-          date: s.date,
-          note: s.after.note,
-          replacements: s.exercises
-            .filter((e) => e.isReplacement)
-            .map((e) => ({
-              position: e.position,
-              original: e.originalExercise,
-              actualExerciseId: e.exerciseId,
-              actualName: e.name,
+        .map((session) => ({
+          sessionId: session.id,
+          date: session.date,
+          note: session.after.note,
+          replacements: session.exercises
+            .filter((exercise) => exercise.isReplacement)
+            .map((exercise) => ({
+              position: exercise.position,
+              original: exercise.originalExercise,
+              actualExerciseId: exercise.exerciseId,
+              actualName: exercise.name,
             })),
-          equipmentNotes: s.exercises
-            .filter((e) => e.equipmentNote)
-            .map((e) => ({ exerciseId: e.exerciseId, name: e.name, note: e.equipmentNote })),
+          equipmentNotes: session.exercises
+            .filter((exercise) => exercise.equipmentNote)
+            .map((exercise) => ({
+              exerciseId: exercise.exerciseId,
+              name: exercise.name,
+              note: exercise.equipmentNote,
+            })),
         })),
       dataQuality: {
         sessionsWithUnverifiedSleep: sorted.filter(
-          (s) => s.before.sleepHours.value !== null && !trustedSource(s.before.sleepHours.source),
+          (session) =>
+            session.before.sleepHours.value !== null &&
+            !trustedSource(session.before.sleepHours.source),
         ).length,
-        sessionsWithOmittedPulse: sorted.filter((s) => s.pulse.unverifiedValuesOmitted).length,
+        sessionsWithOmittedPulse: sorted.filter((session) => session.pulse.unverifiedValuesOmitted)
+          .length,
         sessionsWithLegacyPlan: sorted.filter(
-          (s) => s.program?.savedPlan.source === 'legacy_selected_snapshots',
+          (session) => session.program?.savedPlan.source === 'legacy_selected_snapshots',
         ).length,
       },
     },
