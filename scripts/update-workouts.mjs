@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, parseEnv } from 'node:util';
+import { parseArgs } from 'node:util';
 import pg from 'pg';
+import { readDatabaseTarget } from './database-target.mjs';
 import { content, insertOption } from './program-data.mjs';
-
 const base = JSON.parse(
   await readFile(new URL('../db/seeds/next-cycle.json', import.meta.url), 'utf8'),
 );
@@ -12,73 +12,79 @@ const update = JSON.parse(
   await readFile(new URL('../db/seeds/workout-update-v3.json', import.meta.url), 'utf8'),
 );
 const catalog = { ...base.exercises, ...update.exercises };
-const changes = new Map(update.workouts.map((w) => [w.position, w]));
+const changes = new Map(
+  update.workouts.map((workoutUpdate) => [workoutUpdate.position, workoutUpdate]),
+);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const neededKeys = [
-  ...new Set(
-    update.workouts.flatMap((w) =>
-      w.exercises.flatMap((s) => [
-        s.exercise,
-        ...(base.replacements[s.exercise] ? [base.replacements[s.exercise].exercise] : []),
-      ]),
-    ),
-  ),
-];
-
+const neededKeys = new Set();
+for (const workout of update.workouts) {
+  for (const slot of workout.exercises) {
+    neededKeys.add(slot.exercise);
+    const replacement = base.replacements[slot.exercise];
+    if (replacement) neededKeys.add(replacement.exercise);
+  }
+}
 async function historyFingerprint(client) {
   const result = {};
   for (const table of ['sessions', 'session_exercises', 'session_sets'])
     result[table] = (
-      await client.query(
-        `SELECT count(*)::int AS count,md5(COALESCE(string_agg(to_jsonb(t)::text,'' ORDER BY id),'')) AS digest FROM ${table} t`,
-      )
+      await client.query(`SELECT count(*)::int AS count,
+        md5(COALESCE(string_agg(to_jsonb(t)::text, '' ORDER BY id), '')) AS digest
+      FROM ${table} t`)
     ).rows[0];
   return result;
 }
-
 async function resolveExercises(client, insertMissing) {
   const result = new Map();
   for (const key of neededKeys) {
-    const e = catalog[key];
+    const exerciseDefinition = catalog[key];
     const { rows } = await client.query(
       'SELECT * FROM exercises WHERE name=$1 AND archived_at IS NULL',
-      [e.name],
+      [exerciseDefinition.name],
     );
-    if (rows.length > 1) throw new Error(`Неоднозначное упражнение: ${e.name}`);
+    if (rows.length > 1) throw new Error(`Неоднозначное упражнение: ${exerciseDefinition.name}`);
     let found = rows[0];
     if (!found && insertMissing)
       found = (
         await client.query(
-          `INSERT INTO exercises(name,equipment,measurement_type,weight_type,per_side,instructions)
-      VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
-          [e.name, e.equipment, e.measurement, e.weightType, e.perSide, e.instructions],
+          `INSERT INTO exercises(name, equipment, measurement_type, weight_type, per_side, instructions)
+            VALUES($1, $2, $3, $4, $5, $6)
+            RETURNING *`,
+          [
+            exerciseDefinition.name,
+            exerciseDefinition.equipment,
+            exerciseDefinition.measurement,
+            exerciseDefinition.weightType,
+            exerciseDefinition.perSide,
+            exerciseDefinition.instructions,
+          ],
         )
       ).rows[0];
     if (
       found &&
-      (found.measurement_type !== e.measurement ||
-        found.weight_type !== e.weightType ||
-        found.per_side !== e.perSide)
+      (found.measurement_type !== exerciseDefinition.measurement ||
+        found.weight_type !== exerciseDefinition.weightType ||
+        found.per_side !== exerciseDefinition.perSide)
     )
-      throw new Error(`Несовместимый способ учёта: ${e.name}`);
+      throw new Error(`Несовместимый способ учёта: ${exerciseDefinition.name}`);
     result.set(key, found ?? null);
   }
   return result;
 }
-
 function expectedContent(original, exercises) {
   const option = (slot, position, primary) => {
-    const e = exercises.get(slot.exercise);
-    if (!e) throw new Error(`Не найдено упражнение ${catalog[slot.exercise].name}`);
+    const exerciseDefinition = exercises.get(slot.exercise);
+    if (!exerciseDefinition)
+      throw new Error(`Не найдено упражнение ${catalog[slot.exercise].name}`);
     return {
       position,
-      exerciseId: e.id,
-      name: e.name,
-      equipment: e.equipment,
-      measurement: e.measurement_type,
-      weightType: e.weight_type,
-      perSide: e.per_side,
-      instructions: e.instructions,
+      exerciseId: exerciseDefinition.id,
+      name: exerciseDefinition.name,
+      equipment: exerciseDefinition.equipment,
+      measurement: exerciseDefinition.measurement_type,
+      weightType: exerciseDefinition.weight_type,
+      perSide: exerciseDefinition.per_side,
+      instructions: exerciseDefinition.instructions,
       primary,
       notes: [
         slot.condition,
@@ -96,23 +102,24 @@ function expectedContent(original, exercises) {
       })),
     };
   };
-  return original.map((t) => {
-    const w = changes.get(t.position);
-    if (!w) return t;
+  return original.map((templateDefinition) => {
+    const workoutUpdate = changes.get(templateDefinition.position);
+    if (!workoutUpdate) return templateDefinition;
+    const options = [];
+    for (const [index, slot] of workoutUpdate.exercises.entries()) {
+      const position = index + 1;
+      options.push(option(slot, position, true));
+      const replacement = base.replacements[slot.exercise];
+      if (replacement) options.push(option(replacement, position, false));
+    }
     return {
-      position: w.position,
-      name: w.name,
+      position: workoutUpdate.position,
+      name: workoutUpdate.name,
       notes: update.notes,
-      options: w.exercises.flatMap((slot, i) => [
-        option(slot, i + 1, true),
-        ...(base.replacements[slot.exercise]
-          ? [option(base.replacements[slot.exercise], i + 1, false)]
-          : []),
-      ]),
+      options,
     };
   });
 }
-
 export async function updateWorkouts({ connectionString, apply = false }) {
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000 });
   try {
@@ -125,24 +132,36 @@ export async function updateWorkouts({ connectionString, apply = false }) {
       const lock = (await client.query('SELECT pg_try_advisory_xact_lock(824906) AS acquired'))
         .rows[0];
       if (!lock.acquired) throw new Error('Другая операция с базой уже выполняется.');
-      await client.query(
-        'LOCK TABLE programs,sessions,session_exercises,session_sets,workout_templates,workout_exercise_options,workout_planned_sets,exercises IN SHARE ROW EXCLUSIVE MODE',
-      );
+      await client.query(`LOCK TABLE programs,
+          sessions,
+          session_exercises,
+          session_sets,
+          workout_templates,
+          workout_exercise_options,
+          workout_planned_sets,
+          exercises IN SHARE ROW EXCLUSIVE MODE`);
     }
     const programs = (await client.query('SELECT * FROM programs')).rows;
     const source = programs.find(
-      (p) => p.name === update.name && p.version === update.sourceVersion,
+      (program) => program.name === update.name && program.version === update.sourceVersion,
     );
     if (!source || source.status !== 'published' || source.workout_count !== 16)
       throw new Error('Нужна опубликованная версия 2 с тренировками 1–16.');
     const original = await content(client, source.id);
-    if (original.length !== 16 || original.some((t, i) => t.position !== i + 1))
+    if (
+      original.length !== 16 ||
+      original.some((templateDefinition, index) => templateDefinition.position !== index + 1)
+    )
       throw new Error('Исходная программа должна содержать все номера 1–16.');
-    const existing = programs.find((p) => p.name === update.name && p.version === update.version);
+    const existing = programs.find(
+      (program) => program.name === update.name && program.version === update.version,
+    );
     const before = await historyFingerprint(client);
+    let action = apply ? 'updated' : 'update';
+    if (existing) action = 'already_updated';
     const report = {
       mode: apply ? 'apply' : 'check',
-      action: existing ? 'already_updated' : apply ? 'updated' : 'update',
+      action,
       sourceVersion: update.sourceVersion,
       targetVersion: update.version,
       nextPosition: existing?.next_position ?? source.next_position,
@@ -150,7 +169,7 @@ export async function updateWorkouts({ connectionString, apply = false }) {
       repeatFrom: source.repeat_from,
       changedWorkouts: [...changes.keys()],
       historyCounts: Object.fromEntries(
-        Object.entries(before).map(([table, v]) => [table, v.count]),
+        Object.entries(before).map(([table, tableFingerprint]) => [table, tableFingerprint.count]),
       ),
     };
     if (existing) {
@@ -183,8 +202,9 @@ export async function updateWorkouts({ connectionString, apply = false }) {
     const expected = expectedContent(original, exercises);
     const target = (
       await client.query(
-        `INSERT INTO programs(name,version,workout_count,repeat_from,next_position,revision)
-      VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+        `INSERT INTO programs(name, version, workout_count, repeat_from, next_position, revision)
+          VALUES($1, $2, $3, $4, $5, $6)
+          RETURNING id`,
         [
           update.name,
           update.version,
@@ -195,14 +215,20 @@ export async function updateWorkouts({ connectionString, apply = false }) {
         ],
       )
     ).rows[0];
-    for (const t of expected) {
+    for (const templateDefinition of expected) {
       const template = (
         await client.query(
           'INSERT INTO workout_templates(program_id,position,name,notes) VALUES($1,$2,$3,$4) RETURNING id',
-          [target.id, t.position, t.name, t.notes],
+          [
+            target.id,
+            templateDefinition.position,
+            templateDefinition.name,
+            templateDefinition.notes,
+          ],
         )
       ).rows[0];
-      for (const o of t.options) await insertOption(client, template.id, o);
+      for (const option of templateDefinition.options)
+        await insertOption(client, template.id, option);
     }
     if (
       !same(expected, await content(client, target.id)) ||
@@ -227,7 +253,6 @@ export async function updateWorkouts({ connectionString, apply = false }) {
     await client.end();
   }
 }
-
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -237,18 +262,17 @@ async function main() {
     },
   });
   if (values.apply && values.check) throw new Error('Используй либо --check, либо --apply.');
-  const env = parseEnv(await readFile(resolve(values['env-file']), 'utf8'));
-  if (!env.DATABASE_URL) throw new Error('В выбранном файле нет DATABASE_URL.');
-  const target = new URL(env.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(target.protocol))
-    throw new Error('Нужна строка подключения PostgreSQL.');
-  console.log(`База: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
+  const target = await readDatabaseTarget(values['env-file'], {
+    missingUrlMessage: 'В выбранном файле нет DATABASE_URL.',
+    protocolMessage: 'Нужна строка подключения PostgreSQL.',
+  });
+  console.log(`База: ${target.label}`);
   console.log(
     values.apply ? 'Обновление тренировок 3–9 одной транзакцией.' : 'Проверка без записи.',
   );
   console.log(
     JSON.stringify(
-      await updateWorkouts({ connectionString: env.DATABASE_URL, apply: !!values.apply }),
+      await updateWorkouts({ connectionString: target.connectionString, apply: !!values.apply }),
       null,
       2,
     ),

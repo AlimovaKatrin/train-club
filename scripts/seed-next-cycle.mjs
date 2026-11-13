@@ -1,18 +1,18 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, parseEnv } from 'node:util';
+import { parseArgs } from 'node:util';
 import pg from 'pg';
+import { readDatabaseTarget } from './database-target.mjs';
 import { content, insertOption } from './program-data.mjs';
-
 const definition = JSON.parse(
   await readFile(new URL('../db/seeds/next-cycle.json', import.meta.url), 'utf8'),
 );
 const sourceName = 'Силовые A/B · 8 тренировок';
 const migrations = new URL('../db/migrations/', import.meta.url);
 const planned = (slot) =>
-  Array.from({ length: definition.workingSets }, (_, i) => ({
-    position: i + 1,
+  Array.from({ length: definition.workingSets }, (_, index) => ({
+    position: index + 1,
     repsMin: slot.reps?.[0] ?? null,
     repsMax: slot.reps?.[1] ?? null,
     seconds: slot.seconds?.[0] ?? null,
@@ -26,7 +26,6 @@ const optionNotes = (slot) =>
   ]
     .filter(Boolean)
     .join(' ');
-
 function same(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -41,13 +40,14 @@ function verify(program, actual, original) {
   if (actual.length !== 16 || !same(actual.slice(0, 8), original))
     throw new Error('Тренировки 1–8 должны точно совпадать с исходной программой.');
   for (const expected of definition.workouts) {
-    const workout = actual.find((w) => w.position === expected.position);
-    const slots = expected.exercises.flatMap((s, i) => [
-      { ...s, position: i + 1, primary: true },
-      ...(definition.replacements[s.exercise]
-        ? [{ ...definition.replacements[s.exercise], position: i + 1, primary: false }]
-        : []),
-    ]);
+    const workout = actual.find((workout) => workout.position === expected.position);
+    const slots = [];
+    for (const [index, slot] of expected.exercises.entries()) {
+      const position = index + 1;
+      slots.push({ ...slot, position, primary: true });
+      const replacement = definition.replacements[slot.exercise];
+      if (replacement) slots.push({ ...replacement, position, primary: false });
+    }
     if (
       !workout ||
       workout.name !== expected.name ||
@@ -56,16 +56,16 @@ function verify(program, actual, original) {
     )
       throw new Error(`Не совпадает состав тренировки ${expected.position}.`);
     for (const slot of slots) {
-      const e = definition.exercises[slot.exercise];
+      const exerciseDefinition = definition.exercises[slot.exercise];
       const actualOption = workout.options.find(
-        (o) => o.position === slot.position && o.primary === slot.primary,
+        (option) => option.position === slot.position && option.primary === slot.primary,
       );
       if (
         !actualOption ||
-        actualOption.name !== e.name ||
-        actualOption.measurement !== e.measurement ||
-        actualOption.weightType !== e.weightType ||
-        actualOption.perSide !== e.perSide ||
+        actualOption.name !== exerciseDefinition.name ||
+        actualOption.measurement !== exerciseDefinition.measurement ||
+        actualOption.weightType !== exerciseDefinition.weightType ||
+        actualOption.perSide !== exerciseDefinition.perSide ||
         actualOption.notes !== optionNotes(slot) ||
         !same(actualOption.plan, planned(slot))
       )
@@ -75,7 +75,6 @@ function verify(program, actual, original) {
     }
   }
 }
-
 export async function seedNextCycle({ connectionString, apply = false }) {
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000 });
   try {
@@ -88,19 +87,25 @@ export async function seedNextCycle({ connectionString, apply = false }) {
       const lock = (await client.query('SELECT pg_try_advisory_xact_lock(824906) AS acquired'))
         .rows[0];
       if (!lock.acquired) throw new Error('Другая операция с базой уже выполняется.');
-      await client.query(
-        'LOCK TABLE programs, sessions, workout_templates, workout_exercise_options, workout_planned_sets, exercises IN SHARE ROW EXCLUSIVE MODE',
-      );
+      await client.query(`LOCK TABLE programs,
+          sessions,
+          workout_templates,
+          workout_exercise_options,
+          workout_planned_sets,
+          exercises IN SHARE ROW EXCLUSIVE MODE`);
     }
     const programs = (await client.query('SELECT * FROM programs')).rows;
-    const source = programs.find((p) => p.name === sourceName && p.version === 1);
+    const source = programs.find((program) => program.name === sourceName && program.version === 1);
     if (!source || source.status !== 'published')
       throw new Error('Сначала загрузи исходную персональную программу 1–8.');
     const original = await content(client, source.id);
-    if (original.length !== 8 || original.some((t, i) => t.position !== i + 1))
+    if (
+      original.length !== 8 ||
+      original.some((templateDefinition, index) => templateDefinition.position !== index + 1)
+    )
       throw new Error('Исходная программа должна содержать тренировки 1–8.');
     const existing = programs.find(
-      (p) => p.name === definition.name && p.version === definition.version,
+      (program) => program.name === definition.name && program.version === definition.version,
     );
     if (existing) {
       verify(existing, await content(client, existing.id), original);
@@ -118,8 +123,12 @@ export async function seedNextCycle({ connectionString, apply = false }) {
       throw new Error('Активна другая программа. Автоматическое переключение остановлено.');
     const last = (
       await client.query(
-        `SELECT t.position FROM sessions s JOIN workout_templates t ON t.id=s.workout_template_id
-      WHERE t.program_id=$1 ORDER BY s.created_at DESC,s.id DESC LIMIT 1`,
+        `SELECT t.position
+          FROM sessions s
+          JOIN workout_templates t ON t.id=s.workout_template_id
+          WHERE t.program_id=$1
+          ORDER BY s.created_at DESC, s.id DESC
+          LIMIT 1`,
         [source.id],
       )
     ).rows[0];
@@ -128,10 +137,12 @@ export async function seedNextCycle({ connectionString, apply = false }) {
     const ledger = (await client.query("SELECT to_regclass('public.schema_migrations') AS ledger"))
       .rows[0].ledger;
     const applied = ledger
-      ? (await client.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name)
+      ? (await client.query('SELECT name FROM schema_migrations')).rows.map((row) => row.name)
       : [];
     const pending = (await readdir(migrations))
-      .filter((n) => n.endsWith('.sql') && n !== '001_initial.sql' && !applied.includes(n))
+      .filter(
+        (name) => name.endsWith('.sql') && name !== '001_initial.sql' && !applied.includes(name),
+      )
       .sort();
     const report = {
       mode: apply ? 'apply' : 'check',
@@ -154,69 +165,85 @@ export async function seedNextCycle({ connectionString, apply = false }) {
       await client.query('INSERT INTO schema_migrations(name) VALUES ($1)', [name]);
     }
     const exercises = new Map();
-    for (const [key, e] of Object.entries(definition.exercises)) {
+    for (const [key, exerciseDefinition] of Object.entries(definition.exercises)) {
       let matches = (
         await client.query('SELECT * FROM exercises WHERE name=$1 AND archived_at IS NULL', [
-          e.name,
+          exerciseDefinition.name,
         ])
       ).rows;
-      if (matches.length > 1) throw new Error(`Неоднозначное упражнение в справочнике: ${e.name}`);
+      if (matches.length > 1)
+        throw new Error(`Неоднозначное упражнение в справочнике: ${exerciseDefinition.name}`);
       if (!matches.length)
         matches = (
           await client.query(
-            `INSERT INTO exercises(name,equipment,measurement_type,weight_type,per_side,instructions)
-        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
-            [e.name, e.equipment, e.measurement, e.weightType, e.perSide, e.instructions],
+            `INSERT INTO exercises(name, equipment, measurement_type, weight_type, per_side, instructions)
+              VALUES($1, $2, $3, $4, $5, $6)
+              RETURNING *`,
+            [
+              exerciseDefinition.name,
+              exerciseDefinition.equipment,
+              exerciseDefinition.measurement,
+              exerciseDefinition.weightType,
+              exerciseDefinition.perSide,
+              exerciseDefinition.instructions,
+            ],
           )
         ).rows;
       const found = matches[0];
       if (
-        found.measurement_type !== e.measurement ||
-        found.weight_type !== e.weightType ||
-        found.per_side !== e.perSide
+        found.measurement_type !== exerciseDefinition.measurement ||
+        found.weight_type !== exerciseDefinition.weightType ||
+        found.per_side !== exerciseDefinition.perSide
       )
-        throw new Error(`Способ учёта упражнения не совпадает: ${e.name}`);
+        throw new Error(`Способ учёта упражнения не совпадает: ${exerciseDefinition.name}`);
       exercises.set(key, found.id);
     }
     const target = (
       await client.query(
-        `INSERT INTO programs(name,version,workout_count,repeat_from,next_position)
-      VALUES($1,$2,16,9,$3) RETURNING id`,
+        `INSERT INTO programs(name, version, workout_count, repeat_from, next_position)
+          VALUES($1, $2, 16, 9, $3)
+          RETURNING id`,
         [definition.name, definition.version, next],
       )
     ).rows[0];
-    for (const t of original) {
+    for (const templateDefinition of original) {
       const template = (
         await client.query(
           'INSERT INTO workout_templates(program_id,position,name,notes) VALUES($1,$2,$3,$4) RETURNING id',
-          [target.id, t.position, t.name, t.notes],
+          [
+            target.id,
+            templateDefinition.position,
+            templateDefinition.name,
+            templateDefinition.notes,
+          ],
         )
       ).rows[0];
-      for (const option of t.options) await insertOption(client, template.id, option);
+      for (const option of templateDefinition.options)
+        await insertOption(client, template.id, option);
     }
-    for (const t of definition.workouts) {
+    for (const templateDefinition of definition.workouts) {
       const template = (
         await client.query(
           'INSERT INTO workout_templates(program_id,position,name,notes) VALUES($1,$2,$3,$4) RETURNING id',
-          [target.id, t.position, t.name, definition.notes],
+          [target.id, templateDefinition.position, templateDefinition.name, definition.notes],
         )
       ).rows[0];
-      for (const [i, slot] of t.exercises.entries()) {
+      for (const [index, slot] of templateDefinition.exercises.entries()) {
         await insertOption(client, template.id, {
-          position: i + 1,
+          position: index + 1,
           exerciseId: exercises.get(slot.exercise),
           primary: true,
           notes: optionNotes(slot),
           plan: planned(slot),
         });
-        const alt = definition.replacements[slot.exercise];
-        if (alt)
+        const replacement = definition.replacements[slot.exercise];
+        if (replacement)
           await insertOption(client, template.id, {
-            position: i + 1,
-            exerciseId: exercises.get(alt.exercise),
+            position: index + 1,
+            exerciseId: exercises.get(replacement.exercise),
             primary: false,
-            notes: optionNotes(alt),
-            plan: planned(alt),
+            notes: optionNotes(replacement),
+            plan: planned(replacement),
           });
       }
     }
@@ -241,7 +268,6 @@ export async function seedNextCycle({ connectionString, apply = false }) {
     await client.end();
   }
 }
-
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -252,17 +278,15 @@ async function main() {
     },
   });
   if (values.apply && values.check) throw new Error('Используй либо --check, либо --apply.');
-  const env = parseEnv(await readFile(resolve(values['env-file']), 'utf8'));
-  if (!env.DATABASE_URL) throw new Error('В выбранном env-файле отсутствует DATABASE_URL.');
-  const target = new URL(env.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(target.protocol))
-    throw new Error('Нужна строка подключения PostgreSQL.');
-  console.log(`База: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
+  const target = await readDatabaseTarget(values['env-file'], {
+    protocolMessage: 'Нужна строка подключения PostgreSQL.',
+  });
+  console.log(`База: ${target.label}`);
   if (values['update-3-9']) {
     const { updateWorkouts } = await import('./update-workouts.mjs');
     console.log(
       JSON.stringify(
-        await updateWorkouts({ connectionString: env.DATABASE_URL, apply: !!values.apply }),
+        await updateWorkouts({ connectionString: target.connectionString, apply: !!values.apply }),
         null,
         2,
       ),
@@ -276,7 +300,7 @@ async function main() {
   );
   console.log(
     JSON.stringify(
-      await seedNextCycle({ connectionString: env.DATABASE_URL, apply: !!values.apply }),
+      await seedNextCycle({ connectionString: target.connectionString, apply: !!values.apply }),
       null,
       2,
     ),

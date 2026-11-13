@@ -1,24 +1,23 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, parseEnv } from 'node:util';
+import { parseArgs } from 'node:util';
 import pg from 'pg';
-
+import { readDatabaseTarget } from './database-target.mjs';
 async function counts(client) {
   const totals = (
-    await client.query(`SELECT
-    (SELECT count(*)::int FROM sessions) AS sessions,
-    (SELECT count(*)::int FROM session_exercises) AS exercises,
-    (SELECT count(*)::int FROM session_sets) AS sets`)
+    await client.query(`SELECT (SELECT count(*)::int
+      FROM sessions) AS sessions, (SELECT count(*)::int
+      FROM session_exercises) AS exercises, (SELECT count(*)::int
+      FROM session_sets) AS sets`)
   ).rows[0];
   const activities = (
-    await client.query(
-      'SELECT activity_type,count(*)::int AS count FROM sessions GROUP BY activity_type ORDER BY activity_type',
-    )
+    await client.query(`SELECT activity_type, count(*)::int AS count
+      FROM sessions
+      GROUP BY activity_type
+      ORDER BY activity_type`)
   ).rows;
   return { ...totals, activities };
 }
-
 export async function clearHistory({ connectionString, apply = false }) {
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000 });
   try {
@@ -76,7 +75,6 @@ export async function clearHistory({ connectionString, apply = false }) {
     await client.end();
   }
 }
-
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -87,21 +85,19 @@ async function main() {
   });
   if (values.apply && values.check) throw new Error('Используй либо --check, либо --apply.');
   // No fallback to a dev shell's DATABASE_URL or .env.local.
-  const env = parseEnv(await readFile(resolve(values['env-file']), 'utf8'));
-  if (!env.DATABASE_URL) throw new Error('В выбранном env-файле отсутствует DATABASE_URL.');
-  const target = new URL(env.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(target.protocol))
-    throw new Error('DATABASE_URL должен быть строкой подключения PostgreSQL.');
-  console.log(`База: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
+  const target = await readDatabaseTarget(values['env-file']);
+  console.log(`База: ${target.label}`);
   console.log(
     values.apply
       ? 'Удаление всей истории и возврат активной программы к тренировке №1.'
       : 'Проверка без изменений. Записи для очистки и сброс номера тренировки:',
   );
-  const result = await clearHistory({ connectionString: env.DATABASE_URL, apply: !!values.apply });
+  const result = await clearHistory({
+    connectionString: target.connectionString,
+    apply: !!values.apply,
+  });
   console.log(JSON.stringify(result, null, 2));
 }
-
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     console.error(

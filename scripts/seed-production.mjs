@@ -1,9 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, parseEnv } from 'node:util';
+import { parseArgs } from 'node:util';
 import pg from 'pg';
-
+import { readDatabaseTarget } from './database-target.mjs';
 const programName = 'Силовые A/B · 8 тренировок';
 const demoName = 'Демонстрационная программа · не согласована с тренером';
 const tables = [
@@ -26,13 +26,12 @@ function transactionBody(sql) {
     .replace(/\bCOMMIT;\s*$/i, '')
     .replace(/^(--[^\n]*\n)*BEGIN;\s*/i, '$1');
 }
-
 async function inspect(client) {
   const { rows } = await client.query(
     "SELECT name,to_regclass('public.'||name) IS NOT NULL AS present FROM unnest($1::text[]) AS name",
     [tables],
   );
-  const present = rows.filter((r) => r.present).length;
+  const present = rows.filter((row) => row.present).length;
   if (present && present !== tables.length)
     throw new Error('Неполная схема базы. Автоматическое засеивание остановлено.');
   if (!present) return { schemaExists: false, existingProgram: null, sessions: 0 };
@@ -44,21 +43,25 @@ async function inspect(client) {
       "SELECT count(*)::int AS total,count(*) FILTER (WHERE activity_type='gym')::int AS gym FROM sessions",
     )
   ).rows[0];
-  const personal = programs.find((p) => p.name === programName && p.version === 1);
+  const personal = programs.find(
+    (program) => program.name === programName && program.version === 1,
+  );
   if (personal) {
     if (!personal.is_active || personal.status !== 'published')
       throw new Error(
         'Программа A/B уже существует, но не активна или не опубликована. Автоматическое переключение остановлено.',
       );
     await verifyProgram(client, personal.id);
-  } else if (counts.gym || programs.some((p) => p.is_active && p.name !== demoName)) {
+  } else if (
+    counts.gym ||
+    programs.some((program) => program.is_active && program.name !== demoName)
+  ) {
     throw new Error(
       'В базе есть другая личная программа или силовая история. Нужен отдельный переход на новую программу.',
     );
   }
   return { schemaExists: true, existingProgram: personal ?? null, sessions: counts.total };
 }
-
 async function verifyProgram(client, programId) {
   const templates = (
     await client.query(
@@ -68,17 +71,21 @@ async function verifyProgram(client, programId) {
   ).rows;
   const options = (
     await client.query(
-      `SELECT o.id,o.workout_template_id,o.position,o.is_primary,e.name,e.weight_type,e.per_side
-    FROM workout_exercise_options o JOIN exercises e ON e.id=o.exercise_id
-    JOIN workout_templates t ON t.id=o.workout_template_id WHERE t.program_id=$1`,
+      `SELECT o.id, o.workout_template_id, o.position, o.is_primary, e.name, e.weight_type, e.per_side
+        FROM workout_exercise_options o
+        JOIN exercises e ON e.id=o.exercise_id
+        JOIN workout_templates t ON t.id=o.workout_template_id
+        WHERE t.program_id=$1`,
       [programId],
     )
   ).rows;
   const sets = (
     await client.query(
-      `SELECT s.* FROM workout_planned_sets s
-    JOIN workout_exercise_options o ON o.id=s.exercise_option_id
-    JOIN workout_templates t ON t.id=o.workout_template_id WHERE t.program_id=$1`,
+      `SELECT s.*
+        FROM workout_planned_sets s
+        JOIN workout_exercise_options o ON o.id=s.exercise_option_id
+        JOIN workout_templates t ON t.id=o.workout_template_id
+        WHERE t.program_id=$1`,
       [programId],
     )
   ).rows;
@@ -89,34 +96,37 @@ async function verifyProgram(client, programId) {
   };
   if (templates.length !== 8 || options.length !== 72 || sets.length !== 144) fail();
   for (const [index, template] of templates.entries()) {
-    const exercises = options.filter((o) => o.workout_template_id === template.id);
-    if (template.position !== index + 1 || exercises.filter((o) => o.is_primary).length !== 5)
+    const exercises = options.filter((option) => option.workout_template_id === template.id);
+    if (
+      template.position !== index + 1 ||
+      exercises.filter((option) => option.is_primary).length !== 5
+    )
       fail();
     for (const option of exercises) {
-      if (sets.filter((s) => s.exercise_option_id === option.id).length !== 2) fail();
+      if (sets.filter((plannedSet) => plannedSet.exercise_option_id === option.id).length !== 2)
+        fail();
     }
     for (const [name, primary] of [
       ['Сгибание ног сидя', true],
       ['Сгибание ног лёжа', false],
     ]) {
-      const curl = exercises.find((o) => o.position === 4 && o.name === name);
+      const curl = exercises.find((option) => option.position === 4 && option.name === name);
       if (!curl || curl.is_primary !== primary || curl.weight_type !== 'machine' || curl.per_side)
         fail();
       if (
         sets
-          .filter((s) => s.exercise_option_id === curl.id)
+          .filter((plannedSet) => plannedSet.exercise_option_id === curl.id)
           .some(
-            (s) =>
-              s.target_reps_min !== 12 ||
-              s.target_reps_max !== 15 ||
-              s.target_duration_seconds !== null,
+            (plannedSet) =>
+              plannedSet.target_reps_min !== 12 ||
+              plannedSet.target_reps_max !== 15 ||
+              plannedSet.target_duration_seconds !== null,
           )
       )
         fail();
     }
   }
 }
-
 export async function seedProduction({ connectionString, apply = false }) {
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000 });
   try {
@@ -137,14 +147,14 @@ export async function seedProduction({ connectionString, apply = false }) {
         await client.query('LOCK TABLE programs, sessions IN SHARE ROW EXCLUSIVE MODE');
     }
     const before = await inspect(client);
-    const names = (await readdir(migrations)).filter((n) => n.endsWith('.sql')).sort();
+    const names = (await readdir(migrations)).filter((name) => name.endsWith('.sql')).sort();
     const ledger = (await client.query("SELECT to_regclass('public.schema_migrations') AS ledger"))
       .rows[0].ledger;
     const applied = ledger
-      ? (await client.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name)
+      ? (await client.query('SELECT name FROM schema_migrations')).rows.map((row) => row.name)
       : [];
     const pending = names.filter(
-      (n) => !applied.includes(n) && !(n === '001_initial.sql' && before.schemaExists),
+      (name) => !applied.includes(name) && !(name === '001_initial.sql' && before.schemaExists),
     );
     if (!apply) {
       await client.query('ROLLBACK');
@@ -172,9 +182,11 @@ export async function seedProduction({ connectionString, apply = false }) {
       throw new Error(
         'Проверка программы или сохранности истории не пройдена. Изменения отменены.',
       );
-    const duration = await client.query(
-      "SELECT 1 FROM pg_constraint WHERE conrelid='sessions'::regclass AND conname='sessions_duration_check' AND convalidated",
-    );
+    const duration = await client.query(`SELECT 1
+      FROM pg_constraint
+      WHERE conrelid='sessions'::regclass
+        AND conname='sessions_duration_check'
+        AND convalidated`);
     if (!duration.rowCount)
       throw new Error('Не применена миграция изменяемой длительности. Изменения отменены.');
     await client.query('COMMIT');
@@ -192,7 +204,6 @@ export async function seedProduction({ connectionString, apply = false }) {
     await client.end();
   }
 }
-
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -204,24 +215,19 @@ async function main() {
   if (values.apply && values.check) throw new Error('Используй либо --check, либо --apply.');
   // Read ONLY the explicitly selected file, never inherit DATABASE_URL from a
   // local dev shell or load .env.local as a fallback. Never print credentials.
-  const env = parseEnv(await readFile(resolve(values['env-file']), 'utf8'));
-  if (!env.DATABASE_URL) throw new Error('В выбранном env-файле отсутствует DATABASE_URL.');
-  const target = new URL(env.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(target.protocol))
-    throw new Error('DATABASE_URL должен быть строкой подключения PostgreSQL.');
-  console.log(`База: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
+  const target = await readDatabaseTarget(values['env-file']);
+  console.log(`База: ${target.label}`);
   console.log(
     values.apply
       ? 'Применение миграций и программы одной транзакцией.'
       : 'Проверка без записи в базу.',
   );
   const result = await seedProduction({
-    connectionString: env.DATABASE_URL,
+    connectionString: target.connectionString,
     apply: !!values.apply,
   });
   console.log(JSON.stringify(result, null, 2));
 }
-
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     // PostgreSQL/network errors can include connection details. Expose their
