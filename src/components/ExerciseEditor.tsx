@@ -6,13 +6,13 @@ import {
   formatSet,
   hasResults,
   optionSets,
-  setSchema,
   weightNames,
   workingProgress,
   type Draft,
   type ExerciseOption,
   type SetResult,
 } from '@/lib/domain';
+import { completeCurrentSet, nextPendingExercise, updateExerciseSets } from '@/lib/workout-draft';
 import { NumberField } from './Fields';
 import { ExerciseTechnique } from './ExerciseTechnique';
 import css from './Diary.module.css';
@@ -40,68 +40,33 @@ export function ExerciseEditor({
     else dialog.current?.close();
   }, [replacing]);
   const exercise = draft.input.exercises[draft.exerciseIndex];
-  const option = draft.workout!.options.find((o) => o.id === exercise.optionId)!;
+  const option = draft.workout!.options.find((candidate) => candidate.id === exercise.optionId)!;
   const set = exercise.sets[draft.setIndex];
   const alternatives = draft.workout!.options.filter(
-    (o) => o.position === option.position && o.id !== option.id,
+    (candidate) => candidate.position === option.position && candidate.id !== option.id,
   );
   const editing = draft.editingRevision !== null;
-  const updateSets = (
-    sets: SetResult[],
-    index = draft.setIndex,
-    exerciseIndex = draft.exerciseIndex,
-  ) =>
-    change({
-      ...draft,
-      exerciseIndex,
-      setIndex: index,
-      input: {
-        ...draft.input,
-        exercises: draft.input.exercises.map((e, i) =>
-          i === draft.exerciseIndex ? { ...e, sets } : e,
-        ),
-      },
-    });
-  const updateSet = (patch: Partial<SetResult>) =>
-    updateSets(
-      exercise.sets.map((s, i) => (i === draft.setIndex ? { ...s, ...patch, done: false } : s)),
+  const updateSets = (sets: SetResult[], setIndex = draft.setIndex) => {
+    change(updateExerciseSets(draft, sets, setIndex));
+  };
+  const updateSet = (patch: Partial<SetResult>) => {
+    const sets = exercise.sets.map((set, index) =>
+      index === draft.setIndex ? { ...set, ...patch, done: false } : set,
     );
+    updateSets(sets);
+  };
   const mark = () => {
-    const result = setSchema.safeParse({ ...set, done: true });
-    if (
-      !result.success ||
-      (option.measurement === 'reps' ? set.reps === null : set.seconds === null)
-    ) {
-      onError(
-        'Укажи целое положительное число повторений или секунд. Вес можно оставить неизвестным.',
-      );
+    let next: Draft;
+    try {
+      next = completeCurrentSet(draft);
+    } catch (error) {
+      onError((error as Error).message);
       return;
     }
     onError('');
-    const sets = exercise.sets.map((s, i) => (i === draft.setIndex ? { ...s, done: true } : s));
-    if (editing) {
-      updateSets(sets, Math.min(draft.setIndex + 1, sets.length - 1));
-      return;
-    }
-    const pending = sets.findIndex((s) => !s.done);
-    if (pending !== -1) {
-      const next = sets.findIndex((s, i) => i > draft.setIndex && !s.done);
-      updateSets(sets, next !== -1 ? next : pending);
-      return;
-    }
-    const nextExercise = draft.input.exercises[draft.exerciseIndex + 1];
-    if (nextExercise) {
-      updateSets(
-        sets,
-        Math.max(
-          0,
-          nextExercise.sets.findIndex((s) => !s.done),
-        ),
-        draft.exerciseIndex + 1,
-      );
-    } else updateSets(sets);
+    change(next);
   };
-  const replace = (o: ExerciseOption) => {
+  const replace = (option: ExerciseOption) => {
     if (editing || hasResults(exercise.sets)) return;
     change({
       ...draft,
@@ -109,14 +74,17 @@ export function ExerciseEditor({
       input: {
         ...draft.input,
         exercises: draft.input.exercises.map((e, i) =>
-          i === draft.exerciseIndex ? { optionId: o.id, sets: optionSets(o) } : e,
+          i === draft.exerciseIndex ? { optionId: option.id, sets: optionSets(option) } : e,
         ),
       },
     });
     setReplacing(false);
   };
-  const done = draft.input.exercises.reduce((n, e) => n + workingProgress(e.sets), 0);
-  const total = draft.input.exercises.reduce(
+  const completedWorkingSets = draft.input.exercises.reduce(
+    (n, e) => n + workingProgress(e.sets),
+    0,
+  );
+  const totalWorkingSets = draft.input.exercises.reduce(
     (n, e) => n + e.sets.filter((s) => s.type === 'working').length,
     0,
   );
@@ -124,18 +92,15 @@ export function ExerciseEditor({
   const allDone = draft.input.exercises.every((e) => e.sets.every((s) => s.done));
   const exerciseDone = exercise.sets.every((s) => s.done);
   const nextPending = () => {
-    const next = draft.input.exercises.findIndex(
-      (e, i) => i > draft.exerciseIndex && e.sets.some((s) => !s.done),
-    );
-    const index =
-      next === -1 ? draft.input.exercises.findIndex((e) => e.sets.some((s) => !s.done)) : next;
-    if (index !== -1)
-      change({
-        ...draft,
-        exerciseIndex: index,
-        setIndex: draft.input.exercises[index].sets.findIndex((s) => !s.done),
-      });
+    const next = nextPendingExercise(draft);
+    if (next !== draft) change(next);
   };
+  let primaryAction = { label: '✓ Подход выполнен', onClick: mark };
+  if (allDone) {
+    primaryAction = { label: 'Перейти к итогам →', onClick: onFinish };
+  } else if (exerciseDone) {
+    primaryAction = { label: 'Следующее упражнение →', onClick: nextPending };
+  }
   return (
     <>
       <div className={css.sectionHead}>
@@ -143,7 +108,7 @@ export function ExerciseEditor({
           Упражнение {draft.exerciseIndex + 1} из {draft.input.exercises.length}
         </span>
         <span className={css.small}>
-          {done} из {total} рабочих
+          {completedWorkingSets} из {totalWorkingSets} рабочих
         </span>
       </div>
       <div
@@ -151,10 +116,10 @@ export function ExerciseEditor({
         role="progressbar"
         aria-label="Рабочие подходы"
         aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
+        aria-valuemax={totalWorkingSets}
+        aria-valuenow={completedWorkingSets}
       >
-        <div style={{ width: `${(done / total) * 100}%` }} />
+        <div style={{ width: `${(completedWorkingSets / totalWorkingSets) * 100}%` }} />
       </div>
       <div className={`${css.card} ${css.exerciseCard}`}>
         <h1>{option.name}</h1>
@@ -289,14 +254,17 @@ export function ExerciseEditor({
         </button>
         <div id={listId} hidden={!listOpen}>
           {draft.input.exercises.map((e, i) => {
-            const o = draft.workout!.options.find((o) => o.id === e.optionId)!;
+            const option = draft.workout!.options.find((option) => option.id === e.optionId)!;
             const complete = e.sets.every((s) => s.done);
             const current = i === draft.exerciseIndex;
+            let exerciseStatus = 'Впереди';
+            if (complete) exerciseStatus = 'Выполнено';
+            else if (current) exerciseStatus = 'Сейчас';
             return (
               <button
                 key={e.optionId}
                 className={css.row}
-                aria-label={`Открыть упражнение ${i + 1}: ${o.name}${complete ? ' · выполнено' : ''}`}
+                aria-label={`Открыть упражнение ${i + 1}: ${option.name}${complete ? ' · выполнено' : ''}`}
                 aria-current={current ? 'step' : undefined}
                 onClick={() => {
                   setListOpen(false);
@@ -304,10 +272,9 @@ export function ExerciseEditor({
                 }}
               >
                 <span>
-                  {i + 1}. {o.name}
+                  {i + 1}. {option.name}
                   <small>
-                    {complete ? 'Выполнено' : current ? 'Сейчас' : 'Впереди'} ·{' '}
-                    {workingProgress(e.sets)} из {o.plan.length} рабочих
+                    {exerciseStatus} · {workingProgress(e.sets)} из {option.plan.length} рабочих
                   </small>
                 </span>
                 <span aria-hidden="true">{complete ? '✓' : '›'}</span>
@@ -347,15 +314,8 @@ export function ExerciseEditor({
               </button>
             )}
 
-          <button
-            className={css.primary}
-            onClick={allDone ? onFinish : exerciseDone ? nextPending : mark}
-          >
-            {allDone
-              ? 'Перейти к итогам →'
-              : exerciseDone
-                ? 'Следующее упражнение →'
-                : '✓ Подход выполнен'}
+          <button className={css.primary} onClick={primaryAction.onClick}>
+            {primaryAction.label}
           </button>
         </div>
         <p className={css.status} role="status">
@@ -371,12 +331,12 @@ export function ExerciseEditor({
             </button>
           </div>
           <p className={css.small}>Замена только для этого занятия. Вес не переносится.</p>
-          {alternatives.map((o) => (
-            <button key={o.id} className={css.alternative} onClick={() => replace(o)}>
-              <strong>{o.name}</strong>
+          {alternatives.map((option) => (
+            <button key={option.id} className={css.alternative} onClick={() => replace(option)}>
+              <strong>{option.name}</strong>
               <small>
-                {o.equipment} · {o.plan.map(formatPlan).join(' / ')}
-                {o.perSide ? ' · на каждую сторону' : ''}
+                {option.equipment} · {option.plan.map(formatPlan).join(' / ')}
+                {option.perSide ? ' · на каждую сторону' : ''}
               </small>
             </button>
           ))}

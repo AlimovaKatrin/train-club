@@ -2,42 +2,23 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   activityNames,
-  duration,
-  formatSet,
   newDraft,
   sessionSchema,
   validateSets,
-  weightNames,
   type Activity,
   type Bootstrap,
   type Draft,
   type SessionRecord,
 } from '@/lib/domain';
+import { today, dateLabel } from '@/lib/calendar';
+import { loadDiary, saveSessionDraft } from '@/lib/session-api';
+import { HistoryEntry, SessionHistory, SessionDetails, SessionSaved } from './SessionHistory';
+import { NextActivity } from './NextActivity';
 import { readDrafts, removeDraft, saveDraft } from '@/lib/drafts';
 import { ActivityIcon } from './Fields';
 import { ExerciseEditor } from './ExerciseEditor';
 import { SessionForm } from './SessionForm';
 import css from './Diary.module.css';
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-const dateLabel = (date: string) =>
-  new Date(`${date}T12:00:00`).toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  });
-  const body = await response.json();
-  if (!response.ok)
-    throw new Error(body.error ?? 'Не удалось сохранить занятие. Черновик остаётся на устройстве.');
-  return body;
-}
 export function Diary() {
   const [data, setData] = useState<Bootstrap>({ workout: null, history: [] });
   const [loading, setLoading] = useState(true);
@@ -58,7 +39,7 @@ export function Diary() {
   const writeVersion = useRef(0);
   const refresh = async () => {
     try {
-      setData(await api<Bootstrap>('/api/bootstrap'));
+      setData(await loadDiary());
       setLoadError('');
     } catch (e) {
       setLoadError((e as Error).message);
@@ -154,17 +135,7 @@ export function Diary() {
     setError('');
     try {
       await writes.current;
-      const saved = await api<SessionRecord>(
-        draft.editingRevision === null ? '/api/sessions' : `/api/sessions/${draft.input.id}`,
-        {
-          method: draft.editingRevision === null ? 'POST' : 'PATCH',
-          body: JSON.stringify(
-            draft.editingRevision === null
-              ? draft.input
-              : { input: draft.input, revision: draft.editingRevision },
-          ),
-        },
-      );
+      const saved = await saveSessionDraft(draft);
       latestId.current = null;
       try {
         await removeDraft(draft.input.id);
@@ -205,32 +176,27 @@ export function Diary() {
     );
     navigate('session');
   };
-  const entry = (r: SessionRecord) => (
-    <button
-      key={r.input.id}
-      className={css.row}
-      onClick={() => {
-        setRecord(r);
-        navigate('detail');
-      }}
-    >
-      <span>
-        <strong>
-          {activityNames[r.input.activity]}
-          {r.workout ? ` · тренировка ${r.workout.position}` : ''}
-        </strong>
-        <small>
-          {dateLabel(r.input.date)} · {duration(r.input)} мин · тяжесть {r.input.exertion}/10
-        </small>
-      </span>
-      <span>›</span>
-    </button>
-  );
+  const openRecord = (record: SessionRecord) => {
+    setRecord(record);
+    navigate('detail');
+  };
   const back = (
     <button className={css.back} onClick={() => navigate('home')}>
       <span>‹</span>Сегодня
     </button>
   );
+  const goBackInSession = () => {
+    if (!draft) return;
+    if (draft.stage === 'prepare') {
+      navigate('home');
+      return;
+    }
+    const returnToWorkout = draft.stage === 'finish' && draft.input.activity === 'gym';
+    change({ ...draft, stage: returnToWorkout ? 'workout' : 'prepare' });
+  };
+  let emptyHistoryMessage = 'Здесь появится твоё первое занятие.';
+  if (loading) emptyHistoryMessage = 'Загружаю дневник…';
+  else if (loadError) emptyHistoryMessage = 'История сейчас недоступна.';
   const isWorkout = view === 'session' && draft?.stage === 'workout';
   return (
     <div className={`${css.app} ${isWorkout ? css.workoutScreen : ''}`}>
@@ -274,47 +240,7 @@ export function Diary() {
                 </button>
               ))}
             </div>
-            {activity === 'gym' ? (
-              <div className={css.next}>
-                <span className={css.small}>Следующая по плану</span>
-                {loading ? (
-                  <h2>Загружаю план…</h2>
-                ) : data.workout ? (
-                  <>
-                    <h2>Тренировка {String(data.workout.position).padStart(2, '0')}</h2>
-                    <p>{data.workout.programName}</p>
-                    <div
-                      className={css.sequence}
-                      aria-label={`Следующая тренировка ${data.workout.position} из ${data.workout.totalWorkouts}`}
-                    >
-                      {Array.from({ length: data.workout.totalWorkouts }, (_, i) => (
-                        <span
-                          key={i}
-                          className={i + 1 === data.workout!.position ? css.current : ''}
-                        >
-                          {i + 1}
-                        </span>
-                      ))}
-                    </div>
-                    <p>
-                      После №{data.workout.totalWorkouts} — снова №{data.workout.repeatFrom}. Без
-                      спешки.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h2>Программа пока не добавлена</h2>
-                    <p>Здесь появятся тренировки и замены из твоей программы.</p>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className={css.next}>
-                <span className={css.small}>{activityNames[activity]}</span>
-                <h2>Час для себя</h2>
-                <p>После занятия запиши пульс и ощущения. Очередь зала останется прежней.</p>
-              </div>
-            )}
+            <NextActivity activity={activity} workout={data.workout} loading={loading} />
             {savedDrafts.length > 0 && (
               <section className={css.section}>
                 <h2>Незавершённые занятия</h2>
@@ -349,38 +275,16 @@ export function Diary() {
                 </button>
               </div>
               {data.history[0] ? (
-                entry(data.history[0])
+                <HistoryEntry record={data.history[0]} onOpen={openRecord} />
               ) : (
-                <p className={css.small}>
-                  {loading
-                    ? 'Загружаю дневник…'
-                    : loadError
-                      ? 'История сейчас недоступна.'
-                      : 'Здесь появится твоё первое занятие.'}
-                </p>
+                <p className={css.small}>{emptyHistoryMessage}</p>
               )}
             </section>
           </>
         )}
         {view === 'session' && draft && (
           <>
-            <button
-              className={css.back}
-              disabled={busy}
-              onClick={() => {
-                if (draft.stage === 'prepare') navigate('home');
-                else
-                  change({
-                    ...draft,
-                    stage:
-                      draft.stage === 'workout'
-                        ? 'prepare'
-                        : draft.input.activity === 'gym'
-                          ? 'workout'
-                          : 'prepare',
-                  });
-              }}
-            >
+            <button className={css.back} disabled={busy} onClick={goBackInSession}>
               <span>‹</span>
               {draft.editingRevision !== null
                 ? 'Исправление записи'
@@ -405,30 +309,13 @@ export function Diary() {
         {view === 'history' && (
           <>
             {back}
-            <h1>
-              Каждое занятие
-              <br />
-              имеет значение.
-            </h1>
-            <div className={css.filters} role="group" aria-label="Фильтр истории">
-              {(['all', 'gym', 'pilates', 'boxing'] as const).map((type) => (
-                <button
-                  key={type}
-                  className={filter === type ? css.selected : ''}
-                  aria-pressed={filter === type}
-                  onClick={() => setFilter(type)}
-                >
-                  {type === 'all' ? 'Все' : activityNames[type]}
-                </button>
-              ))}
-            </div>
-            {data.history.filter((r) => filter === 'all' || r.input.activity === filter).map(entry)}
-            {!data.history.some((r) => filter === 'all' || r.input.activity === filter) && (
-              <p className={css.empty}>
-                {loadError ? 'История сейчас недоступна.' : 'Пока нет занятий этого вида.'}
-              </p>
-            )}
-            <p className={css.small}>Показаны последние 100 занятий.</p>
+            <SessionHistory
+              history={data.history}
+              filter={filter}
+              setFilter={setFilter}
+              onOpen={openRecord}
+              loadError={loadError}
+            />
           </>
         )}
         {view === 'detail' && record && (
@@ -436,92 +323,12 @@ export function Diary() {
             <button className={css.back} onClick={() => navigate('history')}>
               <span>‹</span>История
             </button>
-            <h1>
-              {activityNames[record.input.activity]}
-              {record.workout ? ` · ${record.workout.position}` : ''}
-            </h1>
-            <p>{dateLabel(record.input.date)}</p>
-            <div className={css.card}>
-              {[
-                ['Самочувствие до', `${record.input.wellbeing} / 5`],
-                ['Сон', record.input.sleep === null ? 'Не указано' : `${record.input.sleep} ч`],
-                ['Продолжительность', `${duration(record.input)} мин`],
-                ...(record.input.activity === 'gym'
-                  ? [
-                      [
-                        'Разминка / основная / кардио',
-                        `${record.input.warmup} / ${record.input.main} / ${record.input.cardio} мин`,
-                      ],
-                    ]
-                  : []),
-                [
-                  'Пульс',
-                  record.input.pulseMin === null && record.input.pulseMax === null
-                    ? 'Не измерен'
-                    : `${record.input.pulseMin ?? '—'}–${record.input.pulseMax ?? '—'} уд/мин`,
-                ],
-                ['Тяжесть', `${record.input.exertion} / 10`],
-              ].map(([label, value]) => (
-                <div className={css.row} key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-            </div>
-            {record.input.exercises.map((e) => {
-              const o = record.workout!.options.find((o) => o.id === e.optionId)!;
-              return (
-                <section key={e.optionId} className={css.section}>
-                  <h2>{o.name}</h2>
-                  <p className={css.small}>
-                    {weightNames[o.weightType]}
-                    {o.perSide ? ' · на каждую сторону' : ''}
-                  </p>
-                  {e.sets.map((s) => (
-                    <div key={`${s.type}-${s.position}`} className={css.row}>
-                      <span>{s.type === 'warmup' ? 'Разминка' : `${s.position} · рабочий`}</span>
-                      <strong>{formatSet(s)}</strong>
-                    </div>
-                  ))}
-                </section>
-              );
-            })}
-            {record.input.notes && (
-              <section className={css.section}>
-                <h2>Заметка</h2>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{record.input.notes}</p>
-              </section>
-            )}
+            <SessionDetails record={record} />
           </>
         )}
         {view === 'success' && record && (
           <>
-            <div className={css.success}>
-              <div className={css.seal}>✓</div>
-              <h1>
-                Ещё одна
-                <br />в твою пользу.
-              </h1>
-              <p>Занятие сохранено в дневнике.</p>
-            </div>
-            <div className={css.card}>
-              <h2>{activityNames[record.input.activity]}</h2>
-              <p className={css.subtitle}>{dateLabel(record.input.date)}</p>
-              <div className={css.row}>
-                <span>Всего времени</span>
-                <strong>{duration(record.input)} мин</strong>
-              </div>
-              <div className={css.row}>
-                <span>Тяжесть</span>
-                <strong>{record.input.exertion} / 10</strong>
-              </div>
-            </div>
-            {data.workout && (
-              <p className={css.subtitle}>
-                Следующая в зале — тренировка {data.workout.position} из{' '}
-                {data.workout.totalWorkouts}.
-              </p>
-            )}
+            <SessionSaved record={record} nextWorkout={data.workout} />
           </>
         )}
         {error && !isWorkout && (
@@ -552,15 +359,7 @@ export function Diary() {
               disabled={busy}
               onClick={draft.stage === 'finish' ? () => void submit() : advance}
             >
-              {busy
-                ? 'Сохраняю…'
-                : draft.stage === 'prepare'
-                  ? 'Начать занятие →'
-                  : draft.stage === 'workout'
-                    ? 'Перейти к итогам →'
-                    : draft.editingRevision !== null
-                      ? 'Сохранить исправления'
-                      : 'Завершить и сохранить'}
+              {sessionActionLabel(draft, busy)}
             </button>
           )}
           {view === 'detail' && (
@@ -598,4 +397,12 @@ export function Diary() {
       )}
     </div>
   );
+}
+
+function sessionActionLabel(draft: Draft, busy: boolean) {
+  if (busy) return 'Сохраняю…';
+  if (draft.stage === 'prepare') return 'Начать занятие →';
+  if (draft.stage === 'workout') return 'Перейти к итогам →';
+  if (draft.editingRevision !== null) return 'Сохранить исправления';
+  return 'Завершить и сохранить';
 }
