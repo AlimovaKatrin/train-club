@@ -1,0 +1,607 @@
+{
+  "name": "Силовые · 16 тренировок",
+  "sourceVersion": 3,
+  "version": 4,
+  "workingSets": 2,
+  "notes": "Выбирай одну замену. Если она уже есть в этом занятии, лучше возьми другой вариант. Разминка отдельно. Вес подбирай заново, оставляй около 3 повторений в запасе. Одинаковые килограммы разных тренажёров не равнозначны. Для двух гантелей записывай вес одной; для штанги — общий вес вместе с известным весом грифа, неизвестную массу грифа отметь в комментарии; для тренажёра — выбранную нагрузку. В односторонних упражнениях выполни обе стороны, затем отдыхай. Прекращай болезненное движение; замена должна быть комфортной. Повторяющаяся боль требует отдельного разбора.",
+  "exercises": {
+    "split_bodyweight": {
+      "name": "Сплит-присед с опорой без веса",
+      "equipment": "Устойчивая опора",
+      "weightType": "none",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Задняя нога остаётся на полу. Выполни обе стороны, затем отдыхай.",
+      "rest": "около 2 минут"
+    },
+    "reverse_lunge": {
+      "name": "Выпады назад с гантелями",
+      "equipment": "Две гантели",
+      "weightType": "dumbbell",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Выполняй только при уверенном равновесии. Записывай вес одной гантели. Повторы на каждую ногу.",
+      "rest": "около 2 минут"
+    },
+    "barbell_rdl": {
+      "name": "Румынская тяга со штангой",
+      "equipment": "Штанга",
+      "weightType": "total",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Сначала освой вариант с новым снарядом. Записывай общий вес вместе с известным весом грифа; неизвестную массу грифа отметь в комментарии.",
+      "rest": "около 2 минут"
+    },
+    "barbell_bridge": {
+      "name": "Ягодичный мост со штангой на полу",
+      "equipment": "Коврик, штанга, мягкая прокладка",
+      "weightType": "total",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Плечи остаются на полу. Записывай общий вес с известным весом грифа; неизвестную массу грифа отметь в комментарии.",
+      "rest": "60–90 секунд"
+    },
+    "machine_hip_thrust": {
+      "name": "Хип-траст в тренажёре",
+      "equipment": "Тренажёр для хип-траста",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Лопатки на опоре тренажёра. Амплитуда отличается от моста на полу. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "db_calf": {
+      "name": "Подъём на носки стоя с гантелью у опоры",
+      "equipment": "Одна гантель, устойчивая опора",
+      "weightType": "dumbbell",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Выполняй двумя ногами одновременно. Свободной рукой держись за опору. Записывай вес одной гантели.",
+      "rest": "60–90 секунд"
+    },
+    "machine_bench": {
+      "name": "Горизонтальный жим в тренажёре для груди",
+      "equipment": "Тренажёр для горизонтального жима",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Жми двумя руками вперёд. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "machine_incline": {
+      "name": "Наклонный жим в тренажёре для груди",
+      "equipment": "Тренажёр для наклонного жима",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Выбирай направление вверх-вперёд, аналогичное наклонному жиму гантелей. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "machine_row": {
+      "name": "Горизонтальная тяга в тренажёре с упором грудью",
+      "equipment": "Тренажёр для горизонтальной тяги с упором грудью",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Тяни двумя руками. Грудь остаётся на опоре. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "single_cable_row": {
+      "name": "Тяга нижнего блока одной рукой",
+      "equipment": "Нижний блок, одиночная рукоять",
+      "weightType": "machine",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Повторы на каждую руку. Сначала выполни обе стороны, затем отдыхай. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "lever_lat": {
+      "name": "Вертикальная тяга в рычажном тренажёре",
+      "equipment": "Рычажный тренажёр для вертикальной тяги",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Тяни двумя руками сверху вниз. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "machine_shoulder": {
+      "name": "Жим вверх в тренажёре для плеч",
+      "equipment": "Тренажёр для жима над головой",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Жми двумя руками вверх над головой. Записывай выбранную нагрузку в кг.",
+      "rest": "около 2 минут"
+    },
+    "cable_lateral": {
+      "name": "Отведение руки в сторону на нижнем блоке",
+      "equipment": "Нижний блок, одиночная рукоять",
+      "weightType": "machine",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Повторы на каждую руку. Сначала выполни обе стороны, затем отдыхай. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "machine_lateral": {
+      "name": "Разведение рук в стороны в тренажёре",
+      "equipment": "Тренажёр для средней части плеч",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Поднимай обе руки в стороны без разгона корпусом. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "reverse_pec_deck": {
+      "name": "Обратная «бабочка» в тренажёре",
+      "equipment": "Тренажёр «бабочка»",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Разводи обе руки назад. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "ez_curl": {
+      "name": "Сгибание рук с EZ-грифом",
+      "equipment": "EZ-гриф",
+      "weightType": "total",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Сгибай обе руки одновременно. Записывай общий вес с известным весом грифа; неизвестную массу грифа отметь в комментарии.",
+      "rest": "60–90 секунд"
+    },
+    "rope_curl": {
+      "name": "Сгибание рук с канатом на нижнем блоке",
+      "equipment": "Нижний блок, канатная рукоять",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Сгибай обе руки одновременно нейтральным хватом: ладони обращены друг к другу. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "straight_pushdown": {
+      "name": "Разгибание рук на верхнем блоке с прямой рукоятью",
+      "equipment": "Верхний блок, прямая рукоять",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Разгибай обе руки одновременно. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "v_pushdown": {
+      "name": "Разгибание рук на верхнем блоке с V-образной рукоятью",
+      "equipment": "Верхний блок, V-образная рукоять",
+      "weightType": "machine",
+      "perSide": false,
+      "measurement": "reps",
+      "instructions": "Разгибай обе руки одновременно. Записывай выбранную нагрузку в кг.",
+      "rest": "60–90 секунд"
+    },
+    "heel_dead_bug": {
+      "name": "Мёртвый жук с опусканием пятки",
+      "equipment": "Коврик",
+      "weightType": "none",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Руки неподвижны. Поочерёдно опускай пятку к полу, сохраняя положение поясницы. Повторы на каждую сторону.",
+      "rest": "60–90 секунд"
+    },
+    "raised_side_plank": {
+      "name": "Боковая планка на высокой опоре",
+      "equipment": "Устойчивая высокая опора",
+      "weightType": "none",
+      "perSide": true,
+      "measurement": "time",
+      "instructions": "Предплечье на устойчивой высокой опоре. Подбери высоту по сложности. Время на каждую сторону.",
+      "rest": "60–90 секунд"
+    },
+    "kneeling_pallof": {
+      "name": "Жим Палоффа на одном колене",
+      "equipment": "Блок, рукоять, коврик",
+      "weightType": "machine",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Встань на одно колено. Удерживай корпус от вращения. Повторы на каждую сторону; выполни обе стороны перед отдыхом.",
+      "rest": "60–90 секунд"
+    },
+    "bulgarian": {
+      "name": "Болгарский сплит-присед",
+      "equipment": "Скамья, гантели",
+      "weightType": "dumbbell",
+      "perSide": true,
+      "measurement": "reps",
+      "instructions": "Задняя стопа на скамье. Повторы на каждую ногу.",
+      "rest": "около 2 минут"
+    },
+    "plank": {
+      "name": "Планка на предплечьях",
+      "equipment": "Коврик",
+      "weightType": "none",
+      "perSide": false,
+      "measurement": "time",
+      "instructions": "Удерживай корпус ровно.",
+      "rest": "60–90 секунд"
+    },
+    "knee_plank": {
+      "name": "Планка с колен",
+      "equipment": "Коврик",
+      "weightType": "none",
+      "perSide": false,
+      "measurement": "time",
+      "instructions": "Опирайся на предплечья и колени.",
+      "rest": "60–90 секунд"
+    },
+    "bench_plank": {
+      "name": "Планка с предплечьями на скамье",
+      "equipment": "Устойчивая скамья",
+      "weightType": "none",
+      "perSide": false,
+      "measurement": "time",
+      "instructions": "Предплечья на устойчивой скамье; удерживай корпус ровно.",
+      "rest": "60–90 секунд"
+    }
+  },
+  "replacements": {
+    "hack": [
+      {
+        "exercise": "leg_press",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "goblet",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "leg_press": [
+      {
+        "exercise": "hack",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "goblet",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "goblet": [
+      {
+        "exercise": "hack",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "leg_press",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "split": [
+      {
+        "exercise": "split_bodyweight",
+        "reps": [
+          8,
+          10
+        ]
+      },
+      {
+        "exercise": "reverse_lunge",
+        "reps": [
+          8,
+          10
+        ],
+        "condition": "Только если уверенно удерживаешь равновесие."
+      }
+    ],
+    "bulgarian": [
+      {
+        "exercise": "split_bodyweight",
+        "reps": [
+          8,
+          10
+        ]
+      }
+    ],
+    "rdl": [
+      {
+        "exercise": "barbell_rdl",
+        "reps": [
+          8,
+          10
+        ],
+        "condition": "Сначала освой вариант с новым снарядом."
+      }
+    ],
+    "bridge": [
+      {
+        "exercise": "barbell_bridge",
+        "reps": [
+          12,
+          15
+        ]
+      },
+      {
+        "exercise": "machine_hip_thrust",
+        "reps": [
+          10,
+          15
+        ]
+      }
+    ],
+    "seated_curl": [
+      {
+        "exercise": "lying_curl",
+        "reps": [
+          12,
+          15
+        ]
+      }
+    ],
+    "lying_curl": [
+      {
+        "exercise": "seated_curl",
+        "reps": [
+          12,
+          15
+        ]
+      }
+    ],
+    "calf": [
+      {
+        "exercise": "db_calf",
+        "reps": [
+          12,
+          20
+        ]
+      }
+    ],
+    "barbell_bench": [
+      {
+        "exercise": "db_bench",
+        "reps": [
+          8,
+          12
+        ]
+      },
+      {
+        "exercise": "machine_bench",
+        "reps": [
+          8,
+          12
+        ]
+      }
+    ],
+    "db_bench": [
+      {
+        "exercise": "barbell_bench",
+        "reps": [
+          8,
+          10
+        ]
+      },
+      {
+        "exercise": "machine_bench",
+        "reps": [
+          8,
+          12
+        ]
+      }
+    ],
+    "incline_bench": [
+      {
+        "exercise": "machine_incline",
+        "reps": [
+          8,
+          12
+        ]
+      }
+    ],
+    "cable_row": [
+      {
+        "exercise": "chest_row",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "machine_row",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "chest_row": [
+      {
+        "exercise": "cable_row",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "machine_row",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "row": [
+      {
+        "exercise": "single_cable_row",
+        "reps": [
+          10,
+          12
+        ]
+      },
+      {
+        "exercise": "cable_row",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "lat": [
+      {
+        "exercise": "lever_lat",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "shoulder_press": [
+      {
+        "exercise": "machine_shoulder",
+        "reps": [
+          8,
+          12
+        ]
+      }
+    ],
+    "lateral": [
+      {
+        "exercise": "cable_lateral",
+        "reps": [
+          12,
+          15
+        ]
+      },
+      {
+        "exercise": "machine_lateral",
+        "reps": [
+          12,
+          15
+        ]
+      }
+    ],
+    "face_pull": [
+      {
+        "exercise": "reverse_pec_deck",
+        "reps": [
+          12,
+          15
+        ],
+        "condition": "Частичная замена для задней части плеча, без полного повторения вращательного компонента face pull."
+      }
+    ],
+    "db_curl": [
+      {
+        "exercise": "cable_curl",
+        "reps": [
+          10,
+          15
+        ]
+      },
+      {
+        "exercise": "ez_curl",
+        "reps": [
+          10,
+          15
+        ]
+      }
+    ],
+    "cable_curl": [
+      {
+        "exercise": "db_curl",
+        "reps": [
+          10,
+          15
+        ]
+      },
+      {
+        "exercise": "ez_curl",
+        "reps": [
+          10,
+          15
+        ]
+      }
+    ],
+    "hammer": [
+      {
+        "exercise": "rope_curl",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "triceps": [
+      {
+        "exercise": "straight_pushdown",
+        "reps": [
+          10,
+          15
+        ],
+        "condition": "Замена разгибания рук с канатом."
+      },
+      {
+        "exercise": "v_pushdown",
+        "reps": [
+          10,
+          15
+        ],
+        "condition": "Замена разгибания рук с канатом."
+      }
+    ],
+    "dead_bug": [
+      {
+        "exercise": "heel_dead_bug",
+        "reps": [
+          6,
+          10
+        ]
+      }
+    ],
+    "side_plank": [
+      {
+        "exercise": "raised_side_plank",
+        "seconds": [
+          20,
+          30
+        ]
+      }
+    ],
+    "pallof": [
+      {
+        "exercise": "kneeling_pallof",
+        "reps": [
+          10,
+          12
+        ]
+      }
+    ],
+    "plank": [
+      {
+        "exercise": "knee_plank",
+        "seconds": [
+          20,
+          30
+        ]
+      },
+      {
+        "exercise": "bench_plank",
+        "seconds": [
+          20,
+          30
+        ]
+      }
+    ]
+  }
+}

@@ -21,7 +21,8 @@
     "db:workouts:update": "node scripts/update-workouts.mjs",
     "db:history:clear": "node scripts/clear-history.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:replacements:update": "node scripts/update-replacements.mjs"
   },
   "dependencies": {
     "idb": "^8.0.4",
