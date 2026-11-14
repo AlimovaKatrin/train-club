@@ -170,16 +170,19 @@ export function ExerciseEditor({
               'предыдущих результатов пока нет'
             )}
           </div>
-          {!editing && (
+          {!editing && alternatives.length > 0 && (
             <button
               className={css.textButton}
-              disabled={!alternatives.length || hasResults(exercise.sets)}
+              disabled={hasResults(exercise.sets)}
               onClick={() => setReplacing(true)}
             >
               Заменить упражнение
             </button>
           )}
-          {!editing && hasResults(exercise.sets) && (
+          {!editing && alternatives.length === 0 && (
+            <p className={css.small}>Для этого упражнения в программе пока нет замен.</p>
+          )}
+          {!editing && alternatives.length > 0 && hasResults(exercise.sets) && (
             <p className={css.small}>Замена доступна до записи подходов.</p>
           )}
         </details>
