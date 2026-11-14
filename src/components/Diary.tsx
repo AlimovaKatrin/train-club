@@ -15,7 +15,7 @@ import { today, dateLabel } from '@/lib/calendar';
 import { loadDiary, saveSessionDraft } from '@/lib/session-api';
 import { HistoryEntry, SessionHistory, SessionDetails, SessionSaved } from './SessionHistory';
 import { NextActivity } from './NextActivity';
-import { readDrafts, removeDraft, saveDraft } from '@/lib/drafts';
+import { readDrafts, removeDraft, removeDrafts, saveDraft } from '@/lib/drafts';
 import { ActivityIcon } from './Fields';
 import { ExerciseEditor } from './ExerciseEditor';
 import { SessionForm } from './SessionForm';
@@ -82,10 +82,12 @@ export function Diary() {
       });
   };
   const navigate = (to: typeof view) => {
+    if (busy) return;
     setError('');
     setView(to);
   };
   const start = () => {
+    if (busy) return;
     if (!date) {
       setError('Выбери дату занятия.');
       return;
@@ -165,7 +167,7 @@ export function Diary() {
     }
   };
   const edit = () => {
-    if (!record) return;
+    if (!record || busy) return;
     const existing = savedDrafts.find((savedDraft) => savedDraft.input.id === record.input.id);
     change(
       existing ?? {
@@ -179,6 +181,31 @@ export function Diary() {
       },
     );
     navigate('session');
+  };
+  const clearUnfinishedSessions = async () => {
+    if (busy || !savedDrafts.length) return;
+    const confirmed = window.confirm(
+      'Удалить все незавершённые занятия с этого устройства? Введённые в них данные будут потеряны. Сохранённая история останется.',
+    );
+    if (!confirmed) return;
+
+    const ids = new Set(savedDrafts.map((savedDraft) => savedDraft.input.id));
+    setBusy(true);
+    setError('');
+    try {
+      // Finish pending autosaves before deleting, so they cannot recreate cleared drafts.
+      await writes.current;
+      await removeDrafts([...ids]);
+      latestId.current = null;
+      setSavedDrafts((rows) => rows.filter((savedDraft) => !ids.has(savedDraft.input.id)));
+      setDraft((current) => (current && ids.has(current.input.id) ? null : current));
+      setLocalStatus('Незавершённые занятия удалены с устройства.');
+    } catch {
+      setLocalStatus('');
+      setError('Не удалось очистить незавершённые занятия. Попробуй ещё раз.');
+    } finally {
+      setBusy(false);
+    }
   };
   const openRecord = (record: SessionRecord) => {
     setRecord(record);
@@ -247,11 +274,21 @@ export function Diary() {
             <NextActivity activity={activity} workout={data.workout} loading={loading} />
             {savedDrafts.length > 0 && (
               <section className={css.section}>
-                <h2>Незавершённые занятия</h2>
+                <div className={css.sectionHead}>
+                  <h2>Незавершённые занятия</h2>
+                  <button
+                    className={css.textButton}
+                    disabled={busy}
+                    onClick={() => void clearUnfinishedSessions()}
+                  >
+                    Очистить
+                  </button>
+                </div>
                 {savedDrafts.map((savedDraft) => (
                   <button
                     className={css.row}
                     key={savedDraft.input.id}
+                    disabled={busy}
                     onClick={() => {
                       setDraft(savedDraft);
                       latestId.current = savedDraft.input.id;
@@ -351,7 +388,9 @@ export function Diary() {
           {view === 'home' && (
             <button
               className={css.primary}
-              disabled={!draftsReady || !date || (activity === 'gym' && (loading || !data.workout))}
+              disabled={
+                busy || !draftsReady || !date || (activity === 'gym' && (loading || !data.workout))
+              }
               onClick={start}
             >
               Начать тренировку →

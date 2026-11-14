@@ -23,6 +23,27 @@ export async function removeDraft(id: string) {
     database.close();
   }
 }
+export async function removeDrafts(ids: string[]) {
+  const database = await openDraftDatabase();
+  try {
+    const transaction = database.transaction('drafts', 'readwrite');
+    const deletions = ids.map(async (id) => transaction.store.delete(id));
+    try {
+      await Promise.all([...deletions, transaction.done]);
+    } catch (error) {
+      // Roll back the whole batch even if a request failed before reaching IndexedDB.
+      try {
+        transaction.abort();
+      } catch {
+        // IndexedDB may already have aborted the transaction.
+      }
+      await transaction.done.catch(() => {});
+      throw error;
+    }
+  } finally {
+    database.close();
+  }
+}
 export async function readDrafts(): Promise<Draft[]> {
   const database = await openDraftDatabase();
   try {
